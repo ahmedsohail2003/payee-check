@@ -1,4 +1,5 @@
-import { phaseOf } from '../kernel/attempts'
+import { canStartAttempt, phaseOf } from '../kernel/attempts'
+import { lookupRequest } from '../kernel/record'
 import type { PersistedState, Samples } from '../kernel/types'
 
 // A tiny hash router. Every guard lives in resolveRoute and reads phaseOf, so the router can never open a
@@ -62,29 +63,33 @@ export function toHash(route: Route): string {
   }
 }
 
-// Returns the same route object when no guard fires, so `redirected` is an identity check.
 function guard(route: Route, state: PersistedState, samples: Samples): Route {
   if (route.name === 'overview') return route
+  // A stale record link (after Reset, or from another browser) has nothing to show.
   if (route.name === 'record') return state.records.some((r) => r.id === route.recordId) ? route : OVERVIEW
   const { requestId } = route
-  if (!samples.requests.some((r) => r.id === requestId)) return OVERVIEW
+  if (!lookupRequest(samples, requestId)) return OVERVIEW
   const phase = phaseOf(state, requestId)
   switch (route.name) {
     case 'request':
+      // A revealed comparison is locked: the request reopens on it until it is saved.
       return phase === 'pending' ? { name: 'compare', requestId } : route
     case 'call':
-      if (phase === 'pending') return { name: 'compare', requestId }
-      if (phase === 'verified') return { name: 'request', requestId }
-      return route
+      if (canStartAttempt(state, requestId)) return route
+      return phase === 'pending' ? { name: 'compare', requestId } : { name: 'request', requestId }
     case 'compare':
       return phase === 'pending' ? route : { name: 'request', requestId }
   }
 }
 
+// `redirected` is true exactly when the address shown must differ from the one asked for (a guard fired,
+// the shape is unknown, or the address was empty or not in canonical form), so the caller replaces the
+// history entry instead of pushing one.
 export function resolveRoute(hash: string, state: PersistedState, samples: Samples): ResolvedRoute {
   const parsed = parseHash(hash)
   const route = parsed === null ? OVERVIEW : guard(parsed, state, samples)
-  return { route, hash: toHash(route), redirected: parsed === null || route !== parsed }
+  const target = toHash(route)
+  return { route, hash: target, redirected: target !== hash }
 }
 
 // Redirects replace the history entry, so browser Back can't bounce between /call and /compare.

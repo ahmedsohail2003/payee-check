@@ -171,6 +171,11 @@ thead th {
   gap: 8px;
 }
 
+/* The flex gap already spaces it from the badge. */
+.status-line .simulated {
+  margin-left: 0;
+}
+
 .icon {
   width: 1em;
   height: 1em;

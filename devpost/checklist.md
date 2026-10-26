@@ -54,7 +54,7 @@ Build mode: fast
   - Save, check that the record is dated, then reload the page and check that the record and status are still there.
   Commit: `Build the call-back kernel: on-file lock, locked comparison, dated record`
 
-- [ ] **2. The legitimate request verifies, and the lock holds through Back, reload and the browser's Back button**
+- [x] **2. The legitimate request verifies, and the lock holds through Back, reload and the browser's Back button**
   Becomes usable: The second sample can be called back, compared ("Details match.") and saved, after which it shows "Verified" / "Ready to pay" with "Simulated—no money moves.". Until it's saved, it stays exactly "On hold—verification needed". A revealed comparison survives Back and a reload, still locked, and the browser's Back button can never reopen editable answers. A verified request reopens read-only.
   Why now: This completes the scope's "working" definition (one held mismatch and one verified request), and it's where the plan's trickiest promise (locked before revealed, never editable afterwards) gets attacked from every direction while the code is still small.
   PRD ref: `prd.md > Outcomes and payment status`, `prd.md > Comparison rules` (lock, survives Back and reload), `prd.md > Retrying and reopening` (read-only reopening), `prd.md > Trusted call-back` (Back before Compare discards typing)

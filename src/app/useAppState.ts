@@ -58,10 +58,16 @@ export function useAppState() {
 
     const reresolve = () => redirect(resolveRoute(toHash(routeRef.current), stateRef.current, SAMPLES).route)
 
+    // Ordinary navigation pushes one entry. A target the guards turn away (an out-of-date screen) is a
+    // redirect like any other, so it replaces: Back must never land on an entry that bounces forward again.
     const navigate = (target: Route) => {
-      const next = resolveRoute(toHash(target), stateRef.current, SAMPLES).route
-      showRoute(next)
-      pushHash(toHash(next))
+      const resolved = resolveRoute(toHash(target), stateRef.current, SAMPLES)
+      if (resolved.redirected) {
+        redirect(resolved.route)
+        return
+      }
+      showRoute(resolved.route)
+      pushHash(resolved.hash)
     }
 
     const syncWithHash = () => redirect(resolveRoute(window.location.hash, stateRef.current, SAMPLES).route)

@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { toHash } from './app/routes'
 import { useAppState } from './app/useAppState'
 import { ErrorBanner } from './components/ErrorBanner'
 import { APP_NAME, HEADINGS, OVERVIEW_TITLE, RECOVERY, STORAGE_UNREADABLE, pageTitle } from './copy'
@@ -108,18 +109,32 @@ export function App() {
   const app = useAppState()
   const { syncWithHash } = app
 
-  // Links and the browser's Back/Forward change the hash; the hook resolves it through the guards.
+  // Links and the browser's Back/Forward change the hash; the hook resolves it through the guards and
+  // replaces the entry when a guard redirects. popstate also covers a Back between two entries with the same
+  // hash, which fires no hashchange. Both are idempotent, so a step that fires both is harmless.
   useEffect(() => {
     window.addEventListener('hashchange', syncWithHash)
-    return () => window.removeEventListener('hashchange', syncWithHash)
+    window.addEventListener('popstate', syncWithHash)
+    return () => {
+      window.removeEventListener('hashchange', syncWithHash)
+      window.removeEventListener('popstate', syncWithHash)
+    }
   }, [syncWithHash])
 
   const screen = app.load.kind === 'invalid' ? recoveryScreen() : screenFor(app)
+  const routeKey = toHash(app.route)
+  const shownRoute = useRef(routeKey)
 
-  // Slice 2 adds scroll-to-top and heading focus to this effect.
+  // On every screen change: title, top of the page, focus on the new heading. The button just pressed has
+  // gone, so without this focus would fall to <body> and a screen reader would hear nothing. On first load
+  // (and React's StrictMode re-run of it) the route hasn't changed, so only the title is set.
   useEffect(() => {
     document.title = screen.title
-  }, [screen.title])
+    if (shownRoute.current === routeKey) return
+    shownRoute.current = routeKey
+    document.querySelector<HTMLElement>('main h1')?.focus({ preventScroll: true })
+    window.scrollTo(0, 0)
+  }, [routeKey, screen.title])
 
   return (
     <>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CompareResult } from '../app/useAppState'
+import { BackLink } from '../components/BackLink'
 import { Icon } from '../components/Icon'
 import {
   BUTTONS,
@@ -21,7 +22,6 @@ type Props = { view: CallbackView; onCompare: (answers: Answers) => CompareResul
 
 const BLANK: Answers = { payeeName: '', institution: '', transit: '', account: '', personSpokenTo: '' }
 const NUMERIC: ReadonlySet<AnswerKey> = new Set<AnswerKey>(['institution', 'transit', 'account'])
-const BACK_DESTINATION = BUTTONS.backToOverview.slice(BUTTONS.back.length)
 
 const inputId = (key: AnswerKey) => `answer-${key}`
 
@@ -124,10 +124,8 @@ export function CallbackStep({ view, onCompare }: Props) {
         <button type="button" className="btn btn-secondary" aria-expanded={false}>
           {BUTTONS.couldntVerify}
         </button>
-        <a className="btn btn-secondary" href="#/">
-          {BUTTONS.back}
-          <span className="visually-hidden">{BACK_DESTINATION}</span>
-        </a>
+        {/* Navigation only: the typing lives in this component, so leaving discards it. */}
+        <BackLink />
       </div>
     </>
   )

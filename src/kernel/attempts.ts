@@ -62,8 +62,8 @@ export function paymentStatusForPayment(state: PersistedState, payment: Payment)
   return payment.requestId === undefined ? STATUS.scheduled : paymentStatusOf(state, payment.requestId)
 }
 
-// The phases whose Start column opens /call. The router reads this too, so it can never open a
-// Call-back step for a request the kernel would refuse at Compare.
+// The phases whose Start column opens /call. The router's /call guard reads this too, so it can never
+// open a Call-back step for a request the kernel would refuse at Compare.
 export function canStartAttempt(state: PersistedState, requestId: string): boolean {
   const phase = phaseOf(state, requestId)
   return phase === 'needs_verification' || phase === 'held_mismatch' || phase === 'held_incomplete'
@@ -76,8 +76,9 @@ export function missingAnswers(answers: Answers): AnswerKey[] {
 const attemptId = (position: number) => 'A-' + String(position).padStart(3, '0')
 
 export function lockAndCompare(state: PersistedState, requestId: string, answers: Answers, ctx: Ctx): KernelResult {
-  const request = ctx.samples.requests.find((r) => r.id === requestId)
-  if (!request) return { ok: false, reason: 'unknown_request' }
+  // The same lookup saveAttempt and buildRecord use, so a comparison this accepts can always be saved.
+  const parts = lookupRequest(ctx.samples, requestId)
+  if (!parts) return { ok: false, reason: 'unknown_request' }
   // The refusal no typing can fix comes first, so a verified request never asks for fields.
   const phase = phaseOf(state, requestId)
   if (phase === 'verified') return { ok: false, reason: 'verified' }
@@ -92,7 +93,7 @@ export function lockAndCompare(state: PersistedState, requestId: string, answers
     transit: answers.transit,
     account: answers.account,
   }
-  const { results, outcome } = compareDetails(request.requested, stated)
+  const { results, outcome } = compareDetails(parts.request.requested, stated)
   const attempt: Attempt = {
     id: attemptId(state.attempts.length + 1),
     requestId,

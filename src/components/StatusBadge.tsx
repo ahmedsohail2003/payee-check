@@ -20,18 +20,24 @@ const STATUS_KIND: Record<BadgeStatus, Kind> = {
 
 const OUTCOME_KIND: Record<Outcome, Kind> = { verified: 'ok', mismatch: 'bad', couldnt_verify: 'hold' }
 
-type Props = { id?: string } & ({ status: BadgeStatus } | { outcome: Outcome })
-
-export function StatusBadge(props: Props) {
-  const [kind, words]: [Kind, string] =
-    'status' in props
-      ? [STATUS_KIND[props.status], props.status]
-      : [OUTCOME_KIND[props.outcome], OUTCOME_WORDS[props.outcome]]
+function Badge({ kind, words }: { kind: Kind; words: string }) {
   return (
-    <span id={props.id} className={`badge badge-${kind}`} data-testid="status">
+    <span className={`badge badge-${kind}`} data-testid="status">
       <Icon name={KIND_ICON[kind]} />
       {words}
     </span>
+  )
+}
+
+// "Ready to pay" is left out on purpose: it only ever renders through PaymentStatusLine, which puts the
+// simulated-money note beside it, so no screen can show it alone.
+type Props = { status: Exclude<BadgeStatus, typeof STATUS.readyToPay> } | { outcome: Outcome }
+
+export function StatusBadge(props: Props) {
+  return 'status' in props ? (
+    <Badge kind={STATUS_KIND[props.status]} words={props.status} />
+  ) : (
+    <Badge kind={OUTCOME_KIND[props.outcome]} words={OUTCOME_WORDS[props.outcome]} />
   )
 }
 
@@ -39,7 +45,7 @@ export function StatusBadge(props: Props) {
 export function PaymentStatusLine({ status }: { status: PaymentStatus }) {
   return (
     <>
-      <StatusBadge status={status} />
+      <Badge kind={STATUS_KIND[status]} words={status} />
       {status === STATUS.readyToPay && <span className="simulated">{SIMULATED}</span>}
     </>
   )

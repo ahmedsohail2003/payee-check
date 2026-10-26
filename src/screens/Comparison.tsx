@@ -1,4 +1,4 @@
-import { toHash } from '../app/routes'
+import { BackLink } from '../components/BackLink'
 import { Icon, type IconName } from '../components/Icon'
 import { BUTTONS, CAPTIONS, COLUMNS, DETAIL_LABELS, HEADINGS, HOLD_LINE, RECORD_LABELS, RESULT_WORDS } from '../copy'
 import { comparisonLine } from '../kernel/compare'
@@ -8,8 +8,6 @@ import { FIELD_KEYS, type Attempt, type BankDetails, type FieldResult } from '..
 // Values are shown in full here: masking is for the Overview and records only.
 
 type Props = { supplierName: string; requested: BankDetails; attempt: Attempt; onSave: () => void }
-
-const BACK_DESTINATION = BUTTONS.backToOverview.slice(BUTTONS.back.length)
 
 const RESULT_ICON: Record<FieldResult, IconName> = { match: 'check', mismatch: 'cross', not_checked: 'dash' }
 const RESULT_CLASS: Record<FieldResult, string> = {
@@ -81,10 +79,7 @@ export function Comparison({ supplierName, requested, attempt, onSave }: Props) 
           {BUTTONS.saveAttempt}
         </button>
         {/* Navigation only: the locked result stays saved and reopens from the Overview. */}
-        <a className="btn btn-secondary" href={toHash({ name: 'overview' })}>
-          {BUTTONS.back}
-          <span className="visually-hidden">{BACK_DESTINATION}</span>
-        </a>
+        <BackLink />
       </div>
     </>
   )
