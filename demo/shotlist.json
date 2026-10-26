@@ -1,0 +1,41 @@
+{
+  "note": "Scene order and facts for the demo video (PLAN §8, adapted to the approved scope/PRD/spec: no AI model, 'untrusted—not used', no lookalike detector). Seconds are targets for the silent draft; narration is Ahmed's own words, written in demo/teleprompter.html. Cap: under 170 s.",
+  "scenes": [
+    {
+      "id": "s01", "seconds": 6, "on_screen": "Overview: who it's for, fictional-data and no-AI labels, supplier book, this week's payment run with two payments on hold",
+      "facts": ["For owners and bookkeepers at small trades and construction firms in Waterloo Region", "Everything is fictional sample data; no account, no sign-in"]
+    },
+    {
+      "id": "s02", "seconds": 9, "on_screen": "Number card: $67.9 M reported lost to spear phishing in 2025 (813 reports), CAFC; then back to the two held payments",
+      "facts": ["CAFC 'Top frauds of 2025': spear phishing $67.9 M, 813 reports, #2 by dollar loss (retrieved 2026-10-25)", "CAFC: payment redirection frauds commonly target small and medium enterprises; construction and contracting named", "The scenario: an email says the supplier's bank details changed"]
+    },
+    {
+      "id": "s03", "seconds": 14, "on_screen": "Request detail (Harbourline): the email with its phone, reply address and link marked 'untrusted—not used'; on-file vs requested details side by side; 'On hold—verification needed'",
+      "facts": ["Every contact in the email is inert text, never a link", "Competition Bureau: 'Never use the contact information provided in emails'"]
+    },
+    {
+      "id": "s04", "seconds": 30, "on_screen": "Call-back step: only the on-file number 519-555-0142, the script, five blank fields (no email); type what the supplier says; Compare -> 'Full account number does not match: supplier said …4471, email requested …9020.'; payment still on hold",
+      "facts": ["The call-back screen can't see the email: it's built from a type with no requested values", "Compare locks the answers before the comparison exists", "Every digit is compared; leading zeros count"]
+    },
+    {
+      "id": "s05", "seconds": 22, "on_screen": "Save attempt -> dated record (PC-20261025-154200-001), account masked to …9020/…4471, printed as a black-and-white form; then the legitimate request (Cedarline): 'Details match.', still on hold until saved, then 'Ready to pay' with 'Simulated—no money moves.'",
+      "facts": ["Every attempt is its own record; records never change", "Statuses come only from saved attempts", "No money moves; no call is placed"]
+    },
+    {
+      "id": "s06", "seconds": 12, "on_screen": "The lock and the edge cases: browser Back after Compare never reopens the fields; Couldn't verify with 'No answer' -> 'Not checked' x4; phone width",
+      "facts": ["A retry starts blank; earlier records stay as saved", "'Not checked', never 'Match', for details not collected"]
+    },
+    {
+      "id": "s07", "seconds": 24, "on_screen": "How the skill pack shaped it: scope.md 'The Unique Kernel', prd.md 'Look and Feel', checklist.md with six ticked slices",
+      "facts": ["Ahmed's answers in 1-start..4-spec; six slices built in order with a check after each", "Early hands-on check after slice 2", "Every PRD criterion has an ID and a named test"]
+    },
+    {
+      "id": "s08", "seconds": 10, "on_screen": "Honest limits card: no AI model in the app; nothing leaves the laptop; fictional data; can't prove a call happened; test counts from the final run",
+      "facts": ["No AI model runs in this app; it was built with AI assistance (disclosed in the README)", "Limits from the README"]
+    },
+    {
+      "id": "s09", "seconds": 5, "on_screen": "End card: Payee Check, repo URL, 'Built with the Devpost Learn Skill Pack'",
+      "facts": []
+    }
+  ]
+}
