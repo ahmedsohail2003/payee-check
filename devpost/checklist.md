@@ -9,7 +9,7 @@ Build mode: fast
 
 ## Slices
 
-- [ ] **1. The kernel: a held mismatch request is called back on the on-file number, locked, compared and saved as a dated record**
+- [x] **1. The kernel: a held mismatch request is called back on the on-file number, locked, compared and saved as a dated record**
   Becomes usable: Open the app, open the flagged mismatch request, see the email with its contacts marked untrusted, start the call-back (trusted number only, email hidden), type the supplier's answers, press Compare and see "…4471 vs …9020" with the payment still held, press Save attempt and see a dated record. The record and the "On hold—details do not match" status survive a reload. The styling is plain for now.
   Why now: This is `scope.md > The Unique Kernel` end to end: the on-file-number lock, the spoken-vs-written comparison and the dated record. Everything else decorates or hardens it, so it comes first, and bad news about the stack (React 19, Vite 8, Vitest 5, Playwright on installed Chrome) arrives now. Bootstrapping is folded in. The scaffold files already exist (written by hand, no scaffolding CLI) and the dependencies are installed.
   PRD ref: `prd.md > The Core Journey` (steps 1–8, mismatch path), `prd.md > Request review and untrusted contacts`, `prd.md > Trusted call-back`, `prd.md > Comparison rules`, `prd.md > Outcomes and payment status` (mismatch)
@@ -211,4 +211,6 @@ Reflection: [offered/answered/declined/already covered — personal answer belon
 Activity mode: [live app and editor, explicit static fallback, focused alternative, prior practice, or recap]
 
 ## Revisions
+
+- 2026-10-26, slice 1 (internal, no change to what Ahmed approved): `compareDetails` returns `{ results, outcome }` rather than one flat object; `src/kernel/` exports small helpers the spec doesn't name (`localYmd`, `lookupRequest`, `savedStatusFor`, `comparisonLine`); `saveAttempt` also refuses `unknown_request` when an attempt's request isn't in the samples; `Icon` carries `data-testid="icon-<name>"`, so CR-7 can tell a cross from a check without a CSS-class selector; `comparisonLine` drops the second full stop after a payee name that already ends in "."; `copy.ts` gained `ACCOUNT_ENDING` for `MaskedAccount`'s hidden text. The "Couldn't verify" button is visible from slice 1, and its panel arrives in slice 3 as planned.
 
