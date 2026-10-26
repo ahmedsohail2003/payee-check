@@ -195,6 +195,7 @@ Build mode: fast
   - 2026-10-26 ~11:00, Ahmed: "I tried both journeys. Nothing to change yet; keep building." No revisions requested.
 - [x] Final kick-the-tires exploration and feedback completed — after slice 6, using the spec's Hands-on review script H-1 to H-6
   - 2026-10-26 13:51, Ahmed (after starting the app with `npm run dev` at 13:50; review script in `.autopilot/CHECK-payee.md`): "Looks good, yes. ready to ship". Given as one answer for H-1 to H-6; no per-question notes were recorded, and no changes were requested.
+  - 2026-10-26 ~14:45, asked plainly whether he walked H-1 to H-6 himself, Ahmed: "Yes, I went through H-1 to H-6 myself before saying ready to ship; they were all yes."
 
 ## Final Review
 

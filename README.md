@@ -1,6 +1,6 @@
 # Payee Check: a supplier call-back check for "our bank details changed" emails
 
-**When an email says a supplier's bank details changed, Payee Check holds the payment, sends you to the phone number already on file, locks what the supplier tells you before showing what the email asked for, and saves a dated, printable record of every attempt.**
+**When an email says a supplier's bank details changed, Payee Check holds the payment, sends you to the phone number already on file, locks what the supplier tells you before comparing it with what the email asked for, and saves a dated, printable record of every attempt.**
 
 Change-request email → payment on hold → call the on-file number (the email's contacts are marked untrusted) → type what the supplier states → Compare locks it → field-by-field result → dated record → Ready to pay only after a saved, full match.
 
