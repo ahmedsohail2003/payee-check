@@ -1,0 +1,22 @@
+# skill-pack installer output (junctions hold absolute paths) and local agent settings
+/.claude/
+/.agents/
+/agent/
+# private learner profile written by 1-start
+/devpost/learner-profile.md
+# secrets
+.env
+.env.*
+!.env.example
+# dependencies, build and test output
+node_modules/
+dist/
+test-results/
+playwright-report/
+# demo capture output (large or local-only; small demo scripts stay tracked)
+demo/raw/
+demo/audio/
+demo/out/
+demo/qa/
+demo/timeline.json
+demo/teleprompter.html
