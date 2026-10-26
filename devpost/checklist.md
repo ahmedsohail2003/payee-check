@@ -193,23 +193,25 @@ Build mode: fast
 
 - [x] Early usable behavior explored — after slice 2 (both sample requests work end to end, plain styling): try both journeys and the lock, and say what you'd change before the hardening and design slices
   - 2026-10-26 ~11:00, Ahmed: "I tried both journeys. Nothing to change yet; keep building." No revisions requested.
-- [ ] Final kick-the-tires exploration and feedback completed — after slice 6, using the spec's Hands-on review script H-1 to H-6
+- [x] Final kick-the-tires exploration and feedback completed — after slice 6, using the spec's Hands-on review script H-1 to H-6
+  - 2026-10-26 13:51, Ahmed (after starting the app with `npm run dev` at 13:50; review script in `.autopilot/CHECK-payee.md`): "Looks good, yes. ready to ship". Given as one answer for H-1 to H-6; no per-question notes were recorded, and no changes were requested.
 
 ## Final Review
 
-- [ ] Final review complete — feedback resolved and learner confirms ready to ship
+- [x] Final review complete — feedback resolved and learner confirms ready to ship
+  - No feedback items to resolve. `npm run check` green at 13:3x (470 unit, 59 end-to-end) and `--repeat-each=3` 177 passed. Ahmed confirmed "ready to ship" at 13:51. The six test-hardening ideas under Revisions stay deferred.
 
 ## Code Tour and App Map
 
-- [ ] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
-- [ ] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
-- [ ] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
+- [x] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
+- [x] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
+- [x] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
 
-Activity and evidence: [what actually happened; real document/test/code references; unfinished work if interrupted]
-Route and stops: [actual paths and symbols; guided stops completed, or reference-only route]
-Edit outcome: [tried/kept/reverted/declined/not applicable; verification if changed]
-Reflection: [offered/answered/declined/already covered — personal answer belongs only in the ignored profile]
-Activity mode: [live app and editor, explicit static fallback, focused alternative, prior practice, or recap]
+Activity and evidence: brief evidence-based recap tied to the learning goal (turning a quality bar into checks an agent can verify), delivered in chat on Oct 26 ~13:55: PRD Outcomes "stays on hold until Save attempt" → spec Verification Map row OS-1 → `src/kernel/attempts.ts` `paymentStatusOf` (reads only the latest saved attempt) → unit test `OS-1 an unsaved verified comparison leaves the payment "On hold—verification needed"` in `src/kernel/attempts.test.ts` and E2E `OS-1 a match reads "Details match." and stays on hold until saved…` in `tests/e2e/verified-journey.spec.ts` → deliberate break B-3 turned both red (Revisions). Not a hands-on tour: Ahmed was offered a one-minute look at `paymentStatusOf` and had not replied when this was recorded.
+Route and stops: reference-only route in the app map (Compare: `src/screens/CallbackStep.tsx` → `src/app/useAppState.ts` `compare` → `src/kernel/attempts.ts` `lockAndCompare`); not toured interactively.
+Edit outcome: not applicable (no edit offered; the app was already verified and approved).
+Reflection: offered ("What would you do differently next time you start with an agent?"), optional; no answer recorded.
+Activity mode: recap (evidence trace in chat) plus the app map. `devpost/app-map.html` was built from the finished code; two independent read-only checks matched every path, anchor and quoted line to the source, and their six findings were fixed. Static checks only (no browser was opened, to save RAM); shown to Ahmed at ~14:06.
 
 ## Revisions
 
