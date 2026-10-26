@@ -87,6 +87,10 @@ export async function printCalls(page: Page): Promise<number> {
   return page.evaluate(() => (window as TestWindow).__printCalls ?? 0)
 }
 
+// The Screen contract's filled navy "next action". The spec names this class for the every-screen check, and no
+// role or name tells a primary button from a secondary one.
+export const PRIMARY_BUTTON = '.btn-primary'
+
 // What a screen change should also have done. `title` is the Screen contract's document.title; `focused` is
 // for in-app navigation (a click, browser Back, a hash change), which moves focus to the new heading. A first
 // load or a reload only sets the title, because a screen reader already starts at the top.
@@ -104,6 +108,17 @@ export async function checkScreen(page: Page, expected: ScreenExpectation = {}):
   const text = (await page.locator('body').textContent()) ?? ''
   for (const broken of ['NaN', 'undefined', '[object Object]']) {
     expect(text, `no "${broken}" on screen`).not.toContain(broken)
+  }
+
+  // One obvious next action (LF-2): at most one filled navy button shows at a time. A closed panel's or
+  // dialog's buttons don't count, because nobody can see them.
+  expect(await page.locator(PRIMARY_BUTTON).visible().count(), 'at most one visible primary button').toBeLessThanOrEqual(1)
+
+  // Status = colour + icon + words (LF-1): every status badge holds an icon and words, so colour never stands
+  // alone.
+  for (const badge of await page.getByTestId('status').all()) {
+    await expect(badge.locator('svg'), 'every status has an icon').not.toHaveCount(0)
+    await expect(badge, 'every status has words').toHaveText(/\S/)
   }
 
   if (expected.title !== undefined) {
@@ -627,4 +642,19 @@ export async function openResetDialog(page: Page): Promise<void> {
 export async function confirmReset(page: Page): Promise<void> {
   await resetDialogButton(page, 'Yes, reset').click()
   await expect(resetDialog(page)).toBeHidden()
+}
+
+// The register look, the printed record and keyboard use (slice 5).
+
+// Keyboard only (LF-2): presses Tab (or Shift+Tab) until `target` has focus, as a person tabbing through the
+// screen would, and fails after `max` presses. It never clicks, so it also proves the control is reachable.
+export async function tabTo(page: Page, target: Locator, max = 40, key: 'Tab' | 'Shift+Tab' = 'Tab'): Promise<void> {
+  // Guard: the control is on this screen, so a wrong name fails here instead of after `max` presses.
+  await expect(target, 'the control to reach by keyboard is on the screen').toHaveCount(1)
+  const focused = () => target.evaluate((element) => element === document.activeElement)
+  for (let presses = 0; presses < max; presses += 1) {
+    if (await focused()) return
+    await page.keyboard.press(key)
+  }
+  expect(await focused(), `focus reaches the control within ${max} presses of ${key}`).toBe(true)
 }

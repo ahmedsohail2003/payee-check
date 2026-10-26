@@ -31,6 +31,7 @@ import {
   openAttemptRecord,
   openOverview,
   openRequest,
+  paymentRow,
   paymentStatus,
   reachComparison,
   readState,
@@ -268,6 +269,7 @@ test("RT-4 a couldn't-verify hold, its reason and its record look the same after
   await backToOverview(page)
   await expectSameAfterReload(page, AT.overview, HEADING.overview, async () => {
     await expect(paymentStatus(page, MISMATCH.supplier)).toHaveText(PAYMENT_STATUS.incomplete)
+    await expect(paymentRow(page, MISMATCH.supplier), 'the Overview row keeps its reason').toContainText(NO_ANSWER)
     await expect(paymentStatus(page, LEGIT.supplier)).toHaveText(PAYMENT_STATUS.needsVerification)
   })
 })

@@ -28,7 +28,7 @@ function DetailsTable({ view }: { view: RequestView }) {
   const { request, supplier } = view
   return (
     <div className="table-wrap">
-      <table>
+      <table className="existing-vs-requested">
         <caption>{CAPTIONS.existingVsRequested}</caption>
         <thead>
           <tr>
@@ -38,13 +38,17 @@ function DetailsTable({ view }: { view: RequestView }) {
           </tr>
         </thead>
         <tbody>
-          {FIELD_KEYS.map((key) => (
-            <tr key={key}>
-              <th scope="row">{DETAIL_LABELS[key]}</th>
-              <td className="mono">{supplier.onFile[key]}</td>
-              <td className="mono">{request.requested[key]}</td>
-            </tr>
-          ))}
+          {FIELD_KEYS.map((key) => {
+            // Numbers never wrap; a payee name is words, so it may.
+            const valueClass = key === 'payeeName' ? 'mono wrap' : 'mono'
+            return (
+              <tr key={key}>
+                <th scope="row">{DETAIL_LABELS[key]}</th>
+                <td className={valueClass}>{supplier.onFile[key]}</td>
+                <td className={valueClass}>{request.requested[key]}</td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
@@ -55,7 +59,7 @@ function AttemptsTable({ view, records, timeZone }: Omit<Props, 'onStart'>) {
   if (view.savedAttempts.length === 0) return null
   return (
     <div className="table-wrap">
-      <table>
+      <table className="attempts">
         <caption>{CAPTIONS.attempts}</caption>
         <thead>
           <tr>
@@ -77,12 +81,12 @@ function AttemptsTable({ view, records, timeZone }: Omit<Props, 'onStart'>) {
                 <td>
                   <StatusBadge outcome={attempt.outcome} />
                 </td>
-                <td>
+                <td className="nowrap">
                   {/* A saved time prints in its record's own zone, never the viewer's. */}
                   {attempt.savedAt === null ? NONE : formatSavedTime(attempt.savedAt, record?.timeZone ?? timeZone)}
                 </td>
                 {/* The same words its record prints, so the list and the record never disagree. */}
-                <td>{isBlank(attempt.reason) ? NO_REASON : attempt.reason}</td>
+                <td className="reason">{isBlank(attempt.reason) ? NO_REASON : attempt.reason}</td>
                 <td>
                   {record === undefined ? (
                     NONE

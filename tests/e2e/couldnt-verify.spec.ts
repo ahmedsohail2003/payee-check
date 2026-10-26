@@ -25,6 +25,7 @@ import {
   openOverview,
   openRequest,
   panelSaveButton,
+  paymentRow,
   paymentStatus,
   readState,
   readStored,
@@ -111,6 +112,9 @@ test('OS-3 "No answer" holds the payment as incomplete with its reason, offers a
   await backToOverview(page)
   await expect(paymentStatus(page, MISMATCH.supplier)).toHaveText(PAYMENT_STATUS.incomplete)
   await expect(paymentStatus(page, LEGIT.supplier)).toHaveText(PAYMENT_STATUS.needsVerification)
+  // PRD States and Boundaries: the payment row shows the incomplete hold "with the reason", and only that row.
+  await expect(paymentRow(page, MISMATCH.supplier)).toContainText(NO_ANSWER)
+  await expect(paymentRow(page, LEGIT.supplier)).not.toContainText(NO_ANSWER)
 
   // The detail announces the hold together with its reason, lists the one attempt, and offers the retry.
   await openRequest(page, MISMATCH)

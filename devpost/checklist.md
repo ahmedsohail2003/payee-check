@@ -130,7 +130,7 @@ Build mode: fast
   - Optional: in DevTools › Application › Local Storage, change `payee-check:v1` to `{broken`, reload, and check you see the Recovery notice and no statuses.
   Commit: `Handle invalid data, blocked storage, failed saves and Reset demo`
 
-- [ ] **5. The register look, the printed record and keyboard use**
+- [x] **5. The register look, the printed record and keyboard use**
   Becomes usable: Payee Check looks like a calm payment register and verification form:
   - warm off-white, navy, and green, amber and red with icons and words;
   - monospaced bank numbers;

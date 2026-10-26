@@ -102,7 +102,8 @@ export function CallbackStep({ view, onCompare, onCouldntVerify, onEdit }: Props
         </div>
       )}
 
-      <div className="fields">
+      {/* The answers sit on one white sheet, like the paper form they replace. */}
+      <div className="fields form-sheet">
         {ANSWER_KEYS.map((key) => {
           const id = inputId(key)
           const numeric = NUMERIC.has(key)
@@ -123,6 +124,7 @@ export function CallbackStep({ view, onCompare, onCouldntVerify, onEdit }: Props
                 aria-invalid={isMissing ? 'true' : undefined}
                 aria-describedby={isMissing ? `${id}-missing` : undefined}
                 inputMode={numeric ? 'numeric' : undefined}
+                // Monospaced so digits and leading zeros are easy to check while the supplier reads them out.
                 className={numeric ? 'mono' : undefined}
                 maxLength={numeric ? 30 : 100}
                 value={answers[key]}

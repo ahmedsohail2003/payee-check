@@ -2,13 +2,38 @@ import { toHash } from '../app/routes'
 import { MaskedAccount } from '../components/MaskedAccount'
 import { ResetDemoButton } from '../components/ResetDialog'
 import { PaymentStatusLine } from '../components/StatusBadge'
-import { BUTTONS, CAPTIONS, COLUMNS, FICTIONAL_LABEL, HEADINGS, NONE, NO_AI_NOTE, WHO_FOR } from '../copy'
-import { paymentStatusForPayment } from '../kernel/attempts'
+import {
+  BUTTONS,
+  CAPTIONS,
+  COLUMNS,
+  FICTIONAL_LABEL,
+  HEADINGS,
+  NONE,
+  NO_AI_NOTE,
+  RECORD_LABELS,
+  STATUS,
+  WHO_FOR,
+} from '../copy'
+import { deriveRequestView, paymentStatusForPayment } from '../kernel/attempts'
 import { formatCAD, formatDateOnly } from '../kernel/format'
-import type { PersistedState, Samples } from '../kernel/types'
+import type { Payment, PaymentStatus, PersistedState, Samples } from '../kernel/types'
 
 // onReset reports whether the saved data was really cleared; on success the app focuses this screen's heading.
 type Props = { state: PersistedState; samples: Samples; onReset: () => boolean }
+
+// A row still waiting on a check gets a rule in its status colour at the start of the row. The badge in the
+// same row says why in words, with its icon, so the rule never carries meaning alone.
+const ATTENTION: Partial<Record<PaymentStatus, string>> = {
+  [STATUS.needsVerification]: 'row-hold',
+  [STATUS.incomplete]: 'row-hold',
+  [STATUS.mismatch]: 'row-bad',
+}
+
+function rowClass(payment: Payment, status: PaymentStatus): string | undefined {
+  const classes = [payment.requestId === undefined ? null : 'row-flagged', ATTENTION[status] ?? null]
+  const joined = classes.filter((c) => c !== null).join(' ')
+  return joined === '' ? undefined : joined
+}
 
 export function Overview({ state, samples, onReset }: Props) {
   const supplierName = (id: string) => samples.suppliers.find((s) => s.id === id)?.name ?? ''
@@ -18,21 +43,27 @@ export function Overview({ state, samples, onReset }: Props) {
       <h1 tabIndex={-1} aria-describedby="overview-who overview-fictional">
         {HEADINGS.overview}
       </h1>
-      <p id="overview-who">{WHO_FOR}</p>
-      <p id="overview-fictional" className="fictional-label">
-        {FICTIONAL_LABEL}
+      <p id="overview-who" className="lead">
+        {WHO_FOR}
       </p>
-      <p className="hint">{NO_AI_NOTE}</p>
+      <div className="intro-meta">
+        <p id="overview-fictional" className="fictional-label">
+          {FICTIONAL_LABEL}
+        </p>
+        <p className="hint">{NO_AI_NOTE}</p>
+      </div>
 
       {/* The payment run comes first: it's where the work waiting today is. */}
       <div className="table-wrap">
-        <table>
+        <table className="payment-run">
           <caption>{CAPTIONS.paymentRun}</caption>
           <thead>
             <tr>
               <th scope="col">{COLUMNS.supplier}</th>
               <th scope="col">{COLUMNS.reference}</th>
-              <th scope="col">{COLUMNS.amount}</th>
+              <th scope="col" className="num">
+                {COLUMNS.amount}
+              </th>
               <th scope="col">{COLUMNS.dueDate}</th>
               <th scope="col">{COLUMNS.status}</th>
               <th scope="col">{COLUMNS.request}</th>
@@ -41,18 +72,30 @@ export function Overview({ state, samples, onReset }: Props) {
           <tbody>
             {samples.payments.map((payment) => {
               const name = supplierName(payment.supplierId)
+              const status = paymentStatusForPayment(state, payment)
+              // The PRD's couldn't-verify state: the payment shows "On hold—verification incomplete" with the
+              // reason. The reason is only ever set while that is the payment's status.
+              const view = payment.requestId === undefined ? null : deriveRequestView(state, payment.requestId, samples)
+              const reason = view?.reason ?? null
               return (
-                <tr key={payment.id} className={payment.requestId === undefined ? undefined : 'row-flagged'}>
+                <tr key={payment.id} className={rowClass(payment, status)}>
                   <th scope="row">{name}</th>
                   <td className="mono">{payment.ref}</td>
                   <td className="num">{formatCAD(payment.amountCents)}</td>
-                  <td>{formatDateOnly(payment.dueDate)}</td>
+                  <td className="nowrap">{formatDateOnly(payment.dueDate)}</td>
                   <td>
-                    <PaymentStatusLine status={paymentStatusForPayment(state, payment)} />
+                    <span className="status-stack">
+                      <PaymentStatusLine status={status} />
+                    </span>
+                    {reason !== null && (
+                      <span className="status-reason" data-testid="hold-reason">
+                        {RECORD_LABELS.reason}: {reason}
+                      </span>
+                    )}
                   </td>
                   <td>
                     {payment.requestId === undefined ? (
-                      NONE
+                      <span className="none">{NONE}</span>
                     ) : (
                       // One real link, stretched over the row by CSS; never an onClick on the <tr>. The
                       // aria-label pins the name: the hidden span is absolutely positioned, so it counts as a
@@ -75,7 +118,7 @@ export function Overview({ state, samples, onReset }: Props) {
       </div>
 
       <div className="table-wrap">
-        <table>
+        <table className="supplier-book">
           <caption>{CAPTIONS.supplierBook}</caption>
           <thead>
             <tr>

@@ -4,7 +4,7 @@ import { useAppState } from './app/useAppState'
 import { ErrorBanner } from './components/ErrorBanner'
 import { RecoveryNotice } from './components/RecoveryNotice'
 import { StorageNotice } from './components/StorageNotice'
-import { APP_NAME, HEADINGS, OVERVIEW_TITLE, pageTitle } from './copy'
+import { APP_NAME, APP_TAGLINE, HEADINGS, OVERVIEW_TITLE, pageTitle } from './copy'
 import { SAMPLES } from './data/samples'
 import { callbackView, canStartAttempt, deriveRequestView } from './kernel/attempts'
 import { CallbackStep } from './screens/CallbackStep'
@@ -144,8 +144,13 @@ export function App() {
 
   return (
     <>
+      {/* A full-width white bar; its contents line up with the 1100px column below. No links: the heading is
+          where every screen starts, and each screen has its own way back. */}
       <header className="app-header">
-        <p className="app-name">{APP_NAME}</p>
+        <div className="app-header-inner">
+          <p className="app-name">{APP_NAME}</p>
+          <p className="app-tagline">{APP_TAGLINE}</p>
+        </div>
       </header>
       <main>
         <ErrorBanner error={app.error} onRetry={app.error?.retry ?? null} />

@@ -26,11 +26,7 @@ export function Comparison({ supplierName, requested, attempt, onSave }: Props) 
       <h1 tabIndex={-1} aria-describedby="comparison-summary comparison-hold">
         {HEADINGS.comparison(supplierName)}
       </h1>
-      <p
-        id="comparison-summary"
-        data-testid="overall"
-        className={mismatch ? 'overall result-mismatch' : 'overall result-match'}
-      >
+      <p id="comparison-summary" data-testid="overall" className={mismatch ? 'overall overall-bad' : 'overall overall-ok'}>
         <Icon name={mismatch ? 'cross' : 'check'} />
         {overall}
       </p>
@@ -40,7 +36,7 @@ export function Comparison({ supplierName, requested, attempt, onSave }: Props) 
       </p>
 
       <div className="table-wrap">
-        <table>
+        <table className="comparison">
           <caption>{CAPTIONS.comparison}</caption>
           <thead>
             <tr>
@@ -56,8 +52,9 @@ export function Comparison({ supplierName, requested, attempt, onSave }: Props) 
               return (
                 <tr key={key} className={result === 'mismatch' ? 'row-mismatch' : undefined}>
                   <th scope="row">{DETAIL_LABELS[key]}</th>
-                  <td className="mono">{requested[key]}</td>
-                  <td className="mono">{stated?.[key] ?? ''}</td>
+                  {/* In full and monospaced; numbers never wrap, a payee name may. */}
+                  <td className={key === 'payeeName' ? 'mono wrap' : 'mono'}>{requested[key]}</td>
+                  <td className={key === 'payeeName' ? 'mono wrap' : 'mono'}>{stated?.[key] ?? ''}</td>
                   <td className={RESULT_CLASS[result]}>
                     <Icon name={RESULT_ICON[result]} />
                     {RESULT_WORDS[result]}
@@ -69,9 +66,11 @@ export function Comparison({ supplierName, requested, attempt, onSave }: Props) 
         </table>
       </div>
 
-      <dl className="pairs">
-        <dt>{RECORD_LABELS.personSpokenTo}</dt>
-        <dd>{attempt.personSpokenTo ?? ''}</dd>
+      <dl className="pairs comparison-person">
+        <div className="pair">
+          <dt>{RECORD_LABELS.personSpokenTo}</dt>
+          <dd>{attempt.personSpokenTo ?? ''}</dd>
+        </div>
       </dl>
 
       <div className="actions">

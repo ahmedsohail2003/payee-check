@@ -11,7 +11,9 @@ export function RecoveryNotice({ onReset }: { onReset: () => boolean }) {
       <h1 tabIndex={-1} aria-describedby={MESSAGE_ID}>
         {APP_NAME}
       </h1>
-      <p id={MESSAGE_ID}>{RECOVERY}</p>
+      <p id={MESSAGE_ID} className="recovery-message">
+        {RECOVERY}
+      </p>
       <div className="actions">
         <ResetDemoButton onReset={onReset} primary />
       </div>

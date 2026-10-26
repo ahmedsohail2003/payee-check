@@ -161,3 +161,6 @@ export const RECORD_LABELS = {
 
 // What a screen reader says for a masked account, before its last four digits.
 export const ACCOUNT_ENDING = 'account ending'
+
+// The header's one-line description of the app, beside its name on every screen.
+export const APP_TAGLINE = 'Supplier bank-change call-backs'

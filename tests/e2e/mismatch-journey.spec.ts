@@ -140,7 +140,8 @@ async function saveMismatch(page: Page): Promise<void> {
   await onScreen(page, `Verification record ${FIRST_RECORD_ID}`)
 }
 
-test('RQ-1 the request shows the email, existing and requested details in full and monospaced, and the hold status', async ({ page }) => {
+// LF-3's E2E proof is this test's font check: every bank number, on file and requested, is monospaced.
+test('RQ-1 LF-3 the request shows the email, existing and requested details in full and monospaced, and the hold status', async ({ page }) => {
   await openRequest(page)
 
   const email = emailPanel(page)
