@@ -145,6 +145,8 @@ In one line: one command starts it at `http://localhost:5180`, one command prove
   - **mismatch sample:** the supplier states an account ending **4471** (the email asked for **…9020**);
   - **legitimate sample:** the supplier states exactly what the email requested.
 - **Submission:** the demo video and a public GitHub repository. **No deployment**, per `scope.md > Explicitly Cut`.
+  - Public repository: https://github.com/ahmedsohail2003/payee-check (published Oct 26, 2026).
+  - Demo video: https://www.youtube.com/watch?v=JFyYqGfh9Yc (Public, 2:23, published Oct 26, 2026).
 
 ## Look and Feel
 In one line: a calm payment register and verification form, where every colour has a job and every status is also spelled out in words with an icon. From `prd.md > Look and Feel`.
