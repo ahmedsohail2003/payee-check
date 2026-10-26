@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CompareResult } from '../app/useAppState'
+import type { CompareResult, CouldntVerifyInput } from '../app/useAppState'
 import { BackLink } from '../components/BackLink'
 import { Icon } from '../components/Icon'
 import {
@@ -9,6 +9,8 @@ import {
   HEADINGS,
   MISSING,
   MISSING_HEADING,
+  REASON_HINT,
+  REASON_LABEL,
   SCRIPT,
   TRUSTED_TAG,
 } from '../copy'
@@ -16,26 +18,41 @@ import { ANSWER_KEYS, type AnswerKey, type Answers, type CallbackView } from '..
 
 // Request-blind by type: this screen only ever gets a CallbackView (supplier name and on-file number), so the
 // claim being checked can't reach it even by mistake. Typing lives only in this component's state, so
-// Back or a reload before Compare discards it.
+// Back or a reload before Compare discards it, and every new attempt mounts a fresh, blank copy.
 
-type Props = { view: CallbackView; onCompare: (answers: Answers) => CompareResult }
+type Props = {
+  view: CallbackView
+  onCompare: (answers: Answers) => CompareResult
+  onCouldntVerify: (input: CouldntVerifyInput) => void
+}
 
 const BLANK: Answers = { payeeName: '', institution: '', transit: '', account: '', personSpokenTo: '' }
 const NUMERIC: ReadonlySet<AnswerKey> = new Set<AnswerKey>(['institution', 'transit', 'account'])
 
 const inputId = (key: AnswerKey) => `answer-${key}`
+const PANEL_ID = 'couldnt-verify-panel'
+const REASON_ID = 'couldnt-verify-reason'
+const REASON_HINT_ID = 'couldnt-verify-reason-hint'
 
-export function CallbackStep({ view, onCompare }: Props) {
+export function CallbackStep({ view, onCompare, onCouldntVerify }: Props) {
   const [answers, setAnswers] = useState<Answers>(BLANK)
   const [missing, setMissing] = useState<AnswerKey[]>([])
   const [refusals, setRefusals] = useState(0)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [reason, setReason] = useState('')
   const summaryRef = useRef<HTMLDivElement>(null)
+  const reasonRef = useRef<HTMLTextAreaElement>(null)
   const inputs = useRef<Partial<Record<AnswerKey, HTMLInputElement | null>>>({})
 
   // A refused Compare moves focus to the summary, so the reason is heard right away.
   useEffect(() => {
     if (refusals > 0) summaryRef.current?.focus()
   }, [refusals])
+
+  // Opening the panel moves focus to its reason field; closing leaves focus on the toggle that was pressed.
+  useEffect(() => {
+    if (panelOpen) reasonRef.current?.focus()
+  }, [panelOpen])
 
   // No <form> and never disabled: only a deliberate press of Compare may lock, never a stray Enter.
   const handleCompare = () => {
@@ -46,6 +63,11 @@ export function CallbackStep({ view, onCompare }: Props) {
     } else {
       setMissing([])
     }
+  }
+
+  // Never needs the person spoken to, but whatever was typed there goes on the record.
+  const handleCouldntVerify = () => {
+    onCouldntVerify({ reason, personSpokenTo: answers.personSpokenTo })
   }
 
   return (
@@ -117,16 +139,50 @@ export function CallbackStep({ view, onCompare }: Props) {
       </div>
 
       <div className="actions">
-        <button type="button" className="btn btn-primary" onClick={handleCompare}>
+        {/* While the panel is open its Save attempt is the one next action, so Compare steps down to outlined. */}
+        <button type="button" className={panelOpen ? 'btn btn-secondary' : 'btn btn-primary'} onClick={handleCompare}>
           {BUTTONS.compare}
         </button>
-        {/* TODO(slice 3): this disclosure opens the Couldn't verify panel. */}
-        <button type="button" className="btn btn-secondary" aria-expanded={false}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          aria-expanded={panelOpen}
+          aria-controls={PANEL_ID}
+          onClick={() => setPanelOpen((open) => !open)}
+        >
           {BUTTONS.couldntVerify}
         </button>
         {/* Navigation only: the typing lives in this component, so leaving discards it. */}
         <BackLink />
       </div>
+
+      {/* Hidden, not unmounted, when closed: aria-controls always points at it and the reason survives closing. */}
+      <fieldset id={PANEL_ID} className="panel" hidden={!panelOpen}>
+        <legend>{BUTTONS.couldntVerify}</legend>
+        <div className="field">
+          <label htmlFor={REASON_ID}>{REASON_LABEL}</label>
+          <textarea
+            id={REASON_ID}
+            ref={reasonRef}
+            rows={3}
+            maxLength={200}
+            autoComplete="off"
+            aria-describedby={REASON_HINT_ID}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+          />
+          <p id={REASON_HINT_ID} className="hint">
+            {REASON_HINT}
+          </p>
+        </div>
+        <div className="actions">
+          {/* Its own Save attempt, under the panel's legend, so it's never mistaken for the Comparison's. Filled
+              only while open, so the page never holds two primaries, shown or not. */}
+          <button type="button" className={panelOpen ? 'btn btn-primary' : 'btn btn-secondary'} onClick={handleCouldntVerify}>
+            {BUTTONS.saveAttempt}
+          </button>
+        </div>
+      </fieldset>
     </>
   )
 }

@@ -1,5 +1,5 @@
 import { test as base, expect, type Locator, type Page } from '@playwright/test'
-import type { AnswerKey, Answers } from '../../src/kernel/types'
+import type { AnswerKey, Answers, PersistedState } from '../../src/kernel/types'
 
 // Shared by every E2E spec: the automatic network and console watch, the fixed clock, the print counter and
 // the every-screen checks. Specs import `test` and `expect` from here, never from @playwright/test.
@@ -308,11 +308,12 @@ export async function reachComparison(page: Page, sample: Sample): Promise<void>
   await compareAnswers(page, sample)
 }
 
-// From the Comparison; the first record saved under the fixed clock.
-export async function saveAttempt(page: Page): Promise<void> {
+// From the Comparison. Every save happens at FIXED_TIME, so a test's first record is FIRST_RECORD_ID and a
+// later one is told apart only by its position (SECOND_RECORD_ID).
+export async function saveAttempt(page: Page, recordId = FIRST_RECORD_ID): Promise<void> {
   await page.getByRole('button', { name: 'Save attempt', exact: true }).click()
-  await expect(page).toHaveURL(AT.record(FIRST_RECORD_ID))
-  await expectScreen(page, HEADING.record(FIRST_RECORD_ID), 'navigated')
+  await expect(page).toHaveURL(AT.record(recordId))
+  await expectScreen(page, HEADING.record(recordId), 'navigated')
 }
 
 // The Back on the Request detail, Call-back step or Comparison, or the record's "Back to overview".
@@ -320,4 +321,185 @@ export async function backToOverview(page: Page): Promise<void> {
   await control(page, BACK).click()
   await expect(page).toHaveURL(AT.overview)
   await expectScreen(page, HEADING.overview, 'navigated')
+}
+
+// Couldn't verify, retries and the attempt history (slice 3).
+
+export const SECOND_RECORD_ID = 'PC-20261025-154200-002'
+
+export const PAYMENT_STATUS = {
+  needsVerification: 'On hold—verification needed',
+  mismatch: 'On hold—details do not match',
+  incomplete: 'On hold—verification incomplete',
+  readyToPay: 'Ready to pay',
+} as const
+
+export const CALL_SCRIPT =
+  'We received a request to change your payment details. Please state the account-holder name and the institution, transit and account numbers we should use.'
+export const RECORD_HONESTY = "This record shows what was entered and when. It doesn't prove a call took place."
+
+// What Harbourline's email says, none of which may ever reach a Call-back step (CB-4, RT-2).
+export const MISMATCH_EMAIL = {
+  from: 'accounts@harbourline-pay.example',
+  subject: 'Updated banking details for Harbourline Lumber Ltd.',
+  bodyLines: [
+    'Harbourline Lumber Ltd. has moved its banking. Effective immediately, please send all payments, including PR-2026-1041, to our new account:',
+    'Dana Whitlow',
+    'Accounts Receivable, Harbourline Lumber Ltd.',
+  ],
+  contacts: [
+    'accounts@harbourline-pay.example',
+    '519-555-0187',
+    'ap@harbourline-pay.example',
+    'https://harbourline-pay.example/confirm',
+  ],
+  requested: { institution: '952', transit: '60415', account: '73419020' },
+} as const
+
+export function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+export function emailPanel(page: Page): Locator {
+  return page.getByRole('region', { name: 'Email', exact: true })
+}
+
+// Text (hidden text included), every attribute outside the icons' path data, and every field's value: all the
+// ways a screen could carry a value to the person using it.
+export async function everythingInBody(page: Page): Promise<string> {
+  return page.locator('body').evaluate((body) => {
+    const parts = [body.textContent ?? '']
+    for (const element of Array.from(body.querySelectorAll('*'))) {
+      if (element.closest('svg')) continue
+      for (const attribute of Array.from(element.attributes)) parts.push(attribute.value)
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) parts.push(element.value)
+    }
+    return parts.join('\n')
+  })
+}
+
+// The saved value parsed, so a test can count what one action wrote.
+export async function readState(page: Page): Promise<PersistedState | null> {
+  const raw = await readStored(page)
+  return raw === null ? null : (JSON.parse(raw) as PersistedState)
+}
+
+export async function storedCounts(page: Page): Promise<{ attempts: number; records: number } | null> {
+  const state = await readState(page)
+  return state === null ? null : { attempts: state.attempts.length, records: state.records.length }
+}
+
+// Every answer field the person types into on the Call-back step reads empty.
+export async function expectBlankAnswers(page: Page): Promise<void> {
+  for (const label of Object.values(ANSWER_LABELS)) {
+    await expect(page.getByLabel(label, { exact: true }), `"${label}" starts blank`).toHaveValue('')
+  }
+}
+
+// The Call-back step's disclosure, and the panel it opens: a group named by its legend, holding the reason and
+// its own Save attempt, so that button is never confused with the Comparison's.
+export function couldntVerifyButton(page: Page): Locator {
+  return page.getByRole('button', { name: "Couldn't verify", exact: true })
+}
+
+export function couldntVerifyPanel(page: Page): Locator {
+  return page.getByRole('group', { name: "Couldn't verify", exact: true })
+}
+
+export function reasonField(page: Page): Locator {
+  return couldntVerifyPanel(page).getByRole('textbox', { name: 'Reason (optional)', exact: true })
+}
+
+export function panelSaveButton(page: Page): Locator {
+  return couldntVerifyPanel(page).getByRole('button', { name: 'Save attempt', exact: true })
+}
+
+export async function openCouldntVerify(page: Page): Promise<void> {
+  const disclosure = couldntVerifyButton(page)
+  await disclosure.click()
+  await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
+  await expect(couldntVerifyPanel(page)).toBeVisible()
+}
+
+// From the Call-back step: saves a couldn't-verify attempt with this reason ('' leaves it blank).
+export async function saveCouldntVerify(page: Page, reason: string, recordId = FIRST_RECORD_ID): Promise<void> {
+  await openCouldntVerify(page)
+  if (reason !== '') await reasonField(page).fill(reason)
+  await panelSaveButton(page).click()
+  await expect(page).toHaveURL(AT.record(recordId))
+  await expectScreen(page, HEADING.record(recordId), 'navigated')
+}
+
+// From a record.
+export async function backToRequest(page: Page, sample: Sample): Promise<void> {
+  await control(page, 'Back to request').click()
+  await expect(page).toHaveURL(AT.request(sample))
+  await expectScreen(page, HEADING.request(sample), 'navigated')
+}
+
+// From an unresolved Request detail that already lists an attempt.
+export async function retryFromDetail(page: Page, sample: Sample): Promise<void> {
+  await control(page, 'Try verification again').click()
+  await expect(page).toHaveURL(AT.callback(sample))
+  await expectScreen(page, HEADING.callback(sample), 'navigated')
+}
+
+// From a saved mismatch or couldn't-verify record.
+export async function retryFromRecord(page: Page, sample: Sample): Promise<void> {
+  await control(page, 'Start a new call-back attempt').click()
+  await expect(page).toHaveURL(AT.callback(sample))
+  await expectScreen(page, HEADING.callback(sample), 'navigated')
+}
+
+// The Request detail's saved attempts. A row is found by its record link, whose name carries the record ID.
+export function attemptsTable(page: Page): Locator {
+  return table(page, 'Previous attempts')
+}
+
+// Body rows only: the header row has column headers and no cells.
+export function attemptRows(page: Page): Locator {
+  return attemptsTable(page).getByRole('row').filter({ has: page.getByRole('cell') })
+}
+
+export function attemptRow(page: Page, recordId: string): Locator {
+  return attemptsTable(page).getByRole('row').filter({ has: page.getByRole('link', { name: recordId }) })
+}
+
+export function recordLink(page: Page, recordId: string): Locator {
+  return attemptRow(page, recordId).getByRole('link', { name: recordId })
+}
+
+// From the Request detail's attempt list.
+export async function openAttemptRecord(page: Page, recordId: string): Promise<void> {
+  await recordLink(page, recordId).click()
+  await expect(page).toHaveURL(AT.record(recordId))
+  await expectScreen(page, HEADING.record(recordId), 'navigated')
+}
+
+// A record's value for one of its labelled pairs ("Outcome", "Person spoken to", "Reason or note"): the
+// <dd> that follows that exact <dt>.
+export function recordValue(page: Page, term: string): Locator {
+  return page
+    .getByRole('main')
+    .locator('dt')
+    .filter({ hasText: new RegExp(`^${escapeRegExp(term)}$`) })
+    .locator('xpath=following-sibling::dd[1]')
+}
+
+// What a record prints from its own snapshot. The "Saved" note after a save is left out: it belongs to the
+// moment of saving, not to the record.
+export type RecordText = { fields: string; details: string; reason: string }
+
+export async function recordText(page: Page): Promise<RecordText> {
+  return {
+    fields: await page.getByTestId('record-fields').innerText(),
+    details: await table(page, 'Requested and stated details').innerText(),
+    reason: await recordValue(page, 'Reason or note').innerText(),
+  }
+}
+
+export async function expectRecordText(page: Page, expected: RecordText): Promise<void> {
+  await expect(page.getByTestId('record-fields')).toHaveText(expected.fields, { useInnerText: true })
+  await expect(table(page, 'Requested and stated details')).toHaveText(expected.details, { useInnerText: true })
+  await expect(recordValue(page, 'Reason or note')).toHaveText(expected.reason, { useInnerText: true })
 }

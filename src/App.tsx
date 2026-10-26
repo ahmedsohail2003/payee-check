@@ -44,14 +44,18 @@ function screenFor(app: AppState): Screen {
     case 'call': {
       const view = callbackView(route.requestId, SAMPLES)
       if (view === null) return overviewScreen(app)
+      // Keyed by request and its attempt count, so every new attempt starts blank: typing never carries over
+      // from one request's call-back to another's, or from an earlier attempt to a retry. A failed save adds
+      // no attempt, so it keeps the typing.
+      const attemptCount = state.attempts.filter((a) => a.requestId === view.requestId).length
       return {
         title: pageTitle(HEADINGS.callback(view.supplierName)),
-        // Keyed by request, so typing never carries over from one request's call-back to another's.
         element: (
           <CallbackStep
-            key={view.requestId}
+            key={`${view.requestId}:${attemptCount}`}
             view={view}
             onCompare={(answers) => app.compare(view.requestId, answers)}
+            onCouldntVerify={(input) => app.couldntVerify(view.requestId, input)}
           />
         ),
       }

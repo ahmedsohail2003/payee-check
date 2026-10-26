@@ -2,9 +2,20 @@ import { toHash } from '../app/routes'
 import { BackLink } from '../components/BackLink'
 import { EmailView } from '../components/EmailView'
 import { PaymentStatusLine, StatusBadge } from '../components/StatusBadge'
-import { BUTTONS, CAPTIONS, COLUMNS, DETAIL_LABELS, HEADINGS, NONE, RECORD_LABELS, REQUEST_VERIFIED } from '../copy'
+import {
+  BUTTONS,
+  CAPTIONS,
+  COLUMNS,
+  DETAIL_LABELS,
+  HEADINGS,
+  NONE,
+  NO_REASON,
+  RECORD_LABELS,
+  REQUEST_VERIFIED,
+} from '../copy'
 import type { RequestView } from '../kernel/attempts'
 import { formatSavedTime } from '../kernel/format'
+import { isBlank } from '../kernel/normalize'
 import { FIELD_KEYS, type VerificationRecord } from '../kernel/types'
 
 // Unresolved: the email's claim beside what's on file, and the one action that starts the check.
@@ -51,6 +62,7 @@ function AttemptsTable({ view, records, timeZone }: Omit<Props, 'onStart'>) {
             <th scope="col">{COLUMNS.attempt}</th>
             <th scope="col">{COLUMNS.outcome}</th>
             <th scope="col">{COLUMNS.saved}</th>
+            <th scope="col">{RECORD_LABELS.reason}</th>
             <th scope="col">{COLUMNS.record}</th>
           </tr>
         </thead>
@@ -69,6 +81,8 @@ function AttemptsTable({ view, records, timeZone }: Omit<Props, 'onStart'>) {
                   {/* A saved time prints in its record's own zone, never the viewer's. */}
                   {attempt.savedAt === null ? NONE : formatSavedTime(attempt.savedAt, record?.timeZone ?? timeZone)}
                 </td>
+                {/* The same words its record prints, so the list and the record never disagree. */}
+                <td>{isBlank(attempt.reason) ? NO_REASON : attempt.reason}</td>
                 <td>
                   {record === undefined ? (
                     NONE
@@ -100,8 +114,9 @@ export function RequestDetail({ view, records, timeZone, onStart }: Props) {
       <p id="request-status" className="status-line">
         {view.requestVerified && <StatusBadge status={REQUEST_VERIFIED} />}
         <PaymentStatusLine status={view.paymentStatus} />
+        {/* Part of the heading's description, so the hold and its reason are heard together. */}
         {view.phase === 'held_incomplete' && view.reason !== null && (
-          <span className="reason">
+          <span className="reason" data-testid="hold-reason">
             {RECORD_LABELS.reason}: {view.reason}
           </span>
         )}

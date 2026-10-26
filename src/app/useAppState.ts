@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { SAVE_FAILED } from '../copy'
 import { SAMPLES } from '../data/samples'
-import { lockAndCompare, saveAttempt as saveAttemptKernel } from '../kernel/attempts'
+import {
+  lockAndCompare,
+  saveAttempt as saveAttemptKernel,
+  saveCouldntVerify,
+  type CouldntVerifyInput,
+} from '../kernel/attempts'
 import type { AnswerKey, Answers, Ctx, KernelResult, PersistedState } from '../kernel/types'
 import { createStore, EMPTY_STATE } from '../storage/store'
 import { pushHash, replaceHash, resolveRoute, toHash, type Route } from './routes'
@@ -12,6 +17,8 @@ import { pushHash, replaceHash, resolveRoute, toHash, type Route } from './route
 
 export type AppError = { message: string; count: number; retry: (() => void) | null }
 export type CompareResult = { ok: true } | { ok: false; missing?: AnswerKey[] }
+// The reason and the person spoken to, exactly as typed; the kernel stores a blank person as null.
+export type { CouldntVerifyInput }
 
 type Refusal = Exclude<Extract<KernelResult, { ok: false }>['reason'], 'missing'>
 
@@ -136,7 +143,33 @@ export function useAppState() {
       run()
     }
 
-    return { navigate, syncWithHash, compare, saveAttempt }
+    const couldntVerify = (requestId: string, input: CouldntVerifyInput): void => {
+      const run = (): void => {
+        // The kernel accepts a second couldn't-verify on a held request (it's a new attempt), so a double
+        // click is caught here instead: the first click already left this Call-back step.
+        const here = routeRef.current
+        if (here.name !== 'call' || here.requestId !== requestId) return
+        const result = saveCouldntVerify(stateRef.current, requestId, input, ctxAt(new Date()))
+        if (!result.ok) {
+          if (result.reason !== 'missing') refuse(result.reason)
+          return
+        }
+        if (!store.save(result.state).ok) {
+          failed(run)
+          return
+        }
+        commit(result.state)
+        if (result.recordId === null) {
+          reresolve()
+          return
+        }
+        setSavedRecordId(result.recordId)
+        navigate({ name: 'record', recordId: result.recordId })
+      }
+      run()
+    }
+
+    return { navigate, syncWithHash, compare, saveAttempt, couldntVerify }
   }, [store])
 
   // A redirected or empty starting address is replaced, never pushed.

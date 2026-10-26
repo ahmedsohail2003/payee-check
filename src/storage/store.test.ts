@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import type { Attempt, PersistedState, VerificationRecord } from '../kernel/types'
+import { SAMPLES } from '../data/samples'
+import { lockAndCompare, saveAttempt, saveCouldntVerify } from '../kernel/attempts'
+import type { Attempt, Ctx, KernelResult, PersistedState, Samples, VerificationRecord } from '../kernel/types'
 import { createStore, EMPTY_STATE, STORAGE_KEY } from './store'
 
 // An in-memory Storage that records every call and can be told to fail the ways a browser does.
@@ -173,11 +175,28 @@ const SAVED_STATE: PersistedState = {
   records: [RECORD_MISMATCH, RECORD_COULDNT_VERIFY, RECORD_VERIFIED],
 }
 
+// A second comparison on the legitimate request, after its saved verified attempt.
+const COMPARED_LEGIT_AFTER_VERIFIED: Attempt = {
+  ...SAVED_VERIFIED,
+  id: 'A-004',
+  status: 'compared',
+  comparedAt: '2026-10-25T20:10:00.000Z',
+  savedAt: null,
+  recordId: null,
+}
+
 const json = (value: unknown) => JSON.stringify(value)
 const withAttempt = (index: number, patch: Record<string, unknown>) =>
   json({ ...SAVED_STATE, attempts: SAVED_STATE.attempts.map((a, i) => (i === index ? { ...a, ...patch } : a)) })
 const withRecord = (index: number, patch: Record<string, unknown>) =>
   json({ ...SAVED_STATE, records: SAVED_STATE.records.map((r, i) => (i === index ? { ...r, ...patch } : r)) })
+// A change to an attempt and its record together (SAVED_STATE pairs them by index), so the two still agree.
+const withBoth = (index: number, patch: Record<string, unknown>, recordPatch: Record<string, unknown> = patch) =>
+  json({
+    ...SAVED_STATE,
+    attempts: SAVED_STATE.attempts.map((a, i) => (i === index ? { ...a, ...patch } : a)),
+    records: SAVED_STATE.records.map((r, i) => (i === index ? { ...r, ...recordPatch } : r)),
+  })
 const { label: _dropped, ...recordWithoutLabel } = RECORD_MISMATCH
 
 afterEach(() => {
@@ -222,6 +241,34 @@ describe('round trip', () => {
     expect(warn).not.toHaveBeenCalled()
   })
 
+  test('VR-6 a state built by every kernel action (mismatch, couldn\'t verify, verified retry) saves and reloads deep-equal', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const ctx = (iso: string): Ctx => ({ samples: SAMPLES, now: new Date(iso), timeZone: 'America/Toronto' })
+    const answers = { payeeName: 'Harbourline Lumber Ltd.', institution: '952', transit: '60415', account: '73414471', personSpokenTo: 'Sam Okafor' }
+    let state: PersistedState = EMPTY_STATE
+    const run = (result: KernelResult) => {
+      if (!result.ok) throw new Error(`kernel refused: ${result.reason}`)
+      state = result.state
+    }
+    run(lockAndCompare(state, 'req-mismatch', answers, ctx('2026-10-25T19:42:00Z')))
+    run(saveAttempt(state, 'A-001', ctx('2026-10-25T19:42:00Z')))
+    run(saveCouldntVerify(state, 'req-mismatch', { reason: 'No answer' }, ctx('2026-10-25T19:50:00Z')))
+    run(lockAndCompare(state, 'req-mismatch', { ...answers, account: '7341 9020' }, ctx('2026-10-25T20:05:00Z')))
+    run(saveAttempt(state, 'A-003', ctx('2026-10-25T20:05:00Z')))
+
+    const { storage } = fakeStorage()
+    expect(createStore(() => storage).save(state)).toEqual({ ok: true })
+    const reloaded = createStore(() => storage).load()
+    expect(reloaded).toEqual({ kind: 'ok', state })
+    if (reloaded.kind !== 'ok') throw new Error('expected ok')
+    expect(reloaded.state.records.map((r) => r.resultingPaymentStatus)).toEqual([
+      'On hold—details do not match',
+      'On hold—verification incomplete',
+      'Ready to pay',
+    ])
+    expect(warn).not.toHaveBeenCalled()
+  })
+
   test('RS-2 EMPTY_STATE, what first use and Reset return to, is a valid version 1 state with no attempts or records', () => {
     const { storage } = fakeStorage()
     const store = createStore(() => storage)
@@ -257,7 +304,7 @@ describe('clear', () => {
 })
 
 describe('invalid saved data', () => {
-  const cases = [
+  const cases: { id: string; name: string; raw: string; problem?: string }[] = [
     { id: 'SB-1', name: 'bad JSON', raw: '{not json' },
     { id: 'SB-1', name: 'version 2', raw: json({ ...SAVED_STATE, version: 2 }) },
     { id: 'SB-1', name: 'version missing', raw: json({ attempts: SAVED_STATE.attempts, records: SAVED_STATE.records }) },
@@ -278,9 +325,55 @@ describe('invalid saved data', () => {
     { id: 'SB-1', name: 'a due date that is not YYYY-MM-DD', raw: withRecord(0, { dueDate: '30/10/2026' }) },
     { id: 'SB-1', name: 'JSON null', raw: 'null' },
     { id: 'SB-1', name: 'a JSON array', raw: '[]' },
+    // The right shape but against the rules: checkInvariants rejects each one.
+    { id: 'SB-1', name: 'an unknown requestId', raw: withBoth(1, { requestId: 'req-nope' }), problem: 'unknown_request:A-002' },
+    {
+      id: 'SB-1',
+      name: 'a saved verified with a one-digit account difference',
+      raw: withBoth(2, { stated: { ...LEGIT_REQUESTED, account: '3307127' } }),
+      problem: 'results_rederive:A-003',
+    },
+    {
+      id: 'SB-1',
+      name: 'two compared attempts',
+      raw: json({ version: 1, attempts: [COMPARED_MISMATCH, { ...COMPARED_MISMATCH, id: 'A-002' }], records: [] }),
+      problem: 'compared_not_last:A-001',
+    },
+    {
+      id: 'SB-1',
+      name: 'an attempt after verified',
+      raw: json({ ...SAVED_STATE, attempts: [...SAVED_STATE.attempts, COMPARED_LEGIT_AFTER_VERIFIED] }),
+      problem: 'attempt_after_verified:A-004',
+    },
+    {
+      id: 'SB-1',
+      name: 'an attempt-ID gap',
+      raw: json({ version: 1, attempts: [{ ...COMPARED_MISMATCH, id: 'A-002' }], records: [] }),
+      problem: 'attempt_id_not_positional:A-002',
+    },
+    { id: 'SB-1', name: "timeZone 'Mars/Base'", raw: withRecord(0, { timeZone: 'Mars/Base' }), problem: 'time_zone:PC-20261025-154200-001' },
+    {
+      id: 'SB-1',
+      name: 'a record-number gap',
+      raw: withBoth(2, { recordId: 'PC-20261025-160500-004' }, { id: 'PC-20261025-160500-004' }),
+      problem: 'record_id_not_positional:PC-20261025-160500-004',
+    },
+    { id: 'SB-1', name: 'a broken record link', raw: withAttempt(0, { recordId: 'PC-20261025-155000-002' }), problem: 'record_link:A-001' },
+    {
+      id: 'SB-1',
+      name: "a couldn't-verify with a match result",
+      raw: withBoth(1, { results: { ...NOT_CHECKED, account: 'match' } }),
+      problem: 'couldnt_verify_shape:A-002',
+    },
+    {
+      id: 'SB-1',
+      name: 'a record whose status disagrees with its outcome',
+      raw: withRecord(0, { resultingPaymentStatus: 'Ready to pay' }),
+      problem: 'record_status:PC-20261025-154200-001',
+    },
   ]
 
-  test.each(cases)('$id $name → invalid, warned, stored value untouched', ({ raw }) => {
+  test.each(cases)('$id $name → invalid, warned, stored value untouched', ({ raw, problem }) => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { storage, data, calls } = fakeStorage({ [STORAGE_KEY]: raw })
 
@@ -289,6 +382,7 @@ describe('invalid saved data', () => {
     expect(result.kind).toBe('invalid')
     if (result.kind !== 'invalid') throw new Error('expected invalid')
     expect(result.problem).not.toBe('')
+    if (problem !== undefined) expect(result.problem).toContain(problem)
     expect(warn).toHaveBeenCalledTimes(1)
     expect(String(warn.mock.calls[0]?.[0])).toContain(result.problem)
     // Loading never repairs or overwrites: the bad value stays until Reset is confirmed.
@@ -299,6 +393,24 @@ describe('invalid saved data', () => {
   test('SB-1 the valid state every fixture above changes in one place loads ok', () => {
     const { storage } = fakeStorage({ [STORAGE_KEY]: json(SAVED_STATE) })
     expect(createStore(() => storage).load()).toEqual({ kind: 'ok', state: SAVED_STATE })
+  })
+
+  test('SB-1 loaded data is re-judged against the samples: SAMPLES by default, or the ones the store is given', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { storage, data } = fakeStorage({ [STORAGE_KEY]: json(SAVED_STATE) })
+    expect(createStore(() => storage, SAMPLES).load()).toEqual({ kind: 'ok', state: SAVED_STATE })
+
+    // The same saved data after the legitimate request's account was edited: the saved "verified" no longer holds.
+    const edited: Samples = {
+      ...SAMPLES,
+      requests: SAMPLES.requests.map((r) => (r.id === 'req-legit' ? { ...r, requested: { ...r.requested, account: '3307127' } } : r)),
+    }
+    const result = createStore(() => storage, edited).load()
+    expect(result.kind).toBe('invalid')
+    if (result.kind !== 'invalid') throw new Error('expected invalid')
+    expect(result.problem).toContain('results_rederive:A-003')
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(data.get(STORAGE_KEY)).toBe(json(SAVED_STATE))
   })
 })
 

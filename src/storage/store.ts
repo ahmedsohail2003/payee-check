@@ -1,5 +1,7 @@
 import { z } from 'zod'
-import type { PersistedState } from '../kernel/types'
+import { SAMPLES } from '../data/samples'
+import { checkInvariants } from '../kernel/invariants'
+import type { PersistedState, Samples } from '../kernel/types'
 import { persistedStateSchema } from './schema'
 
 // The only code that touches localStorage: one key, one write of the whole state per action, read back before
@@ -18,8 +20,8 @@ export type ClearResult = { ok: true } | { ok: false }
 export type Store = { load(): LoadResult; save(state: PersistedState): SaveResult; clear(): ClearResult }
 
 // The getter is called inside each try because in Chrome even reading window.localStorage throws when site
-// data is blocked.
-export function createStore(getStorage: () => Storage = () => window.localStorage): Store {
+// data is blocked. The samples are what loaded data is checked against; tests may pass their own.
+export function createStore(getStorage: () => Storage = () => window.localStorage, samples: Samples = SAMPLES): Store {
   return {
     load() {
       let raw: string | null
@@ -29,7 +31,7 @@ export function createStore(getStorage: () => Storage = () => window.localStorag
         return { kind: 'unavailable' }
       }
       if (raw === null) return { kind: 'empty' }
-      const result = parse(raw)
+      const result = parse(raw, samples)
       // The problem is for developers and tests only; the Recovery notice the user sees never changes.
       if (result.kind === 'invalid') console.warn(`Payee Check: saved data in ${STORAGE_KEY} is invalid.\n${result.problem}`)
       return result
@@ -58,7 +60,7 @@ export function createStore(getStorage: () => Storage = () => window.localStorag
   }
 }
 
-function parse(raw: string): LoadResult {
+function parse(raw: string, samples: Samples): LoadResult {
   let data: unknown
   try {
     data = JSON.parse(raw)
@@ -73,9 +75,10 @@ function parse(raw: string): LoadResult {
   const parsed = persistedStateSchema.safeParse(data)
   if (!parsed.success) return { kind: 'invalid', problem: z.prettifyError(parsed.error) }
 
-  // ── Slice 3 adds the invariant check here ──
-  // const problems = checkInvariants(parsed.data, SAMPLES)
-  // if (problems.length > 0) return { kind: 'invalid', problem: problems.join(', ') }
+  // Right shape is not enough: every outcome is re-derived, so "Ready to pay" can't come from a stale or
+  // wrong saved result.
+  const problems = checkInvariants(parsed.data, samples)
+  if (problems.length > 0) return { kind: 'invalid', problem: `invariants: ${problems.join(', ')}` }
 
   return { kind: 'ok', state: parsed.data }
 }

@@ -305,7 +305,8 @@ thead th {
   font-weight: 600;
 }
 
-.field input {
+.field input,
+.field textarea {
   font: inherit;
   width: 100%;
   max-width: 28rem;
@@ -318,6 +319,35 @@ thead th {
 
 .field input.mono {
   font-family: var(--font-mono);
+}
+
+.field textarea {
+  display: block;
+  resize: vertical;
+}
+
+.field .hint {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+
+/* The Couldn't verify panel: a bordered group under its toggle, never a second form. */
+.panel {
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin: 0 0 16px;
+  padding: 4px 16px 0;
+}
+
+.panel legend {
+  font-weight: 600;
+  padding: 0 4px;
+}
+
+/* A closed panel stays in the DOM for aria-controls; no class may bring it back on screen. */
+[hidden] {
+  display: none !important;
 }
 
 .field-missing {

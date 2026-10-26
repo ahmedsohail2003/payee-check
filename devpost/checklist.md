@@ -75,7 +75,7 @@ Build mode: fast
   - Start the mismatch request again after a Reset (or use a fresh browser profile), press Compare, then try the browser's Back button and a reload: you should never get editable answers back.
   Commit: `Verify the legitimate request and harden the comparison lock`
 
-- [ ] **3. Couldn't verify, retries and a record history that never changes**
+- [x] **3. Couldn't verify, retries and a record history that never changes**
   Becomes usable: On the call-back step, "Couldn't verify" saves an attempt with an optional reason (and the person spoken to, if typed). The payment then shows "On hold—verification incomplete" with the reason, and the record shows "Not checked" for every field. An unresolved request lists its earlier attempts and offers "Try verification again" (or "Start a new call-back attempt" from a record), which always starts blank with the email hidden. Earlier records never change, and saved data that breaks the rules is rejected.
   Why now: Retrying is where history can silently be rewritten, so append-only and the invariants arrive together with the first feature that creates more than one attempt.
   PRD ref: `prd.md > Outcomes and payment status` (couldn't verify), `prd.md > Verification records`, `prd.md > Retrying and reopening`
@@ -191,7 +191,8 @@ Build mode: fast
 
 ## Hands-on Checkpoints
 
-- [ ] Early usable behavior explored — after slice 2 (both sample requests work end to end, plain styling): try both journeys and the lock, and say what you'd change before the hardening and design slices
+- [x] Early usable behavior explored — after slice 2 (both sample requests work end to end, plain styling): try both journeys and the lock, and say what you'd change before the hardening and design slices
+  - 2026-10-26 ~11:00, Ahmed: "I tried both journeys. Nothing to change yet; keep building." No revisions requested.
 - [ ] Final kick-the-tires exploration and feedback completed — after slice 6, using the spec's Hands-on review script H-1 to H-6
 
 ## Final Review
@@ -213,4 +214,5 @@ Activity mode: [live app and editor, explicit static fallback, focused alternati
 ## Revisions
 
 - 2026-10-26, slice 1 (internal, no change to what Ahmed approved): `compareDetails` returns `{ results, outcome }` rather than one flat object; `src/kernel/` exports small helpers the spec doesn't name (`localYmd`, `lookupRequest`, `savedStatusFor`, `comparisonLine`); `saveAttempt` also refuses `unknown_request` when an attempt's request isn't in the samples; `Icon` carries `data-testid="icon-<name>"`, so CR-7 can tell a cross from a check without a CSS-class selector; `comparisonLine` drops the second full stop after a payee name that already ends in "."; `copy.ts` gained `ACCOUNT_ENDING` for `MaskedAccount`'s hidden text. The "Couldn't verify" button is visible from slice 1, and its panel arrives in slice 3 as planned.
+- 2026-10-26, slice 3 (internal wording fix in a learner check): slice 3's learner check says the first record "should still say 'On hold—details do not match'" after a couldn't-verify and a matching retry. A record keeps the status that was true when it was saved, so a couldn't-verify record reads "On hold—verification incomplete"; the "still says 'On hold—details do not match'" case is a saved mismatch that is later retried and verified, which `retry.spec.ts` (VR-1) proves. Behaviour is as the PRD and spec describe; only the learner-check wording was off.
 

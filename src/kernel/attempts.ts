@@ -140,6 +140,47 @@ export function saveAttempt(state: PersistedState, attemptIdToSave: string, ctx:
   }
 }
 
+export type CouldntVerifyInput = { reason?: string; personSpokenTo?: string }
+
+const NOT_CHECKED = { payeeName: 'not_checked', institution: 'not_checked', transit: 'not_checked', account: 'not_checked' } as const
+
+// Saved straight away, with no comparison: nothing was collected, so every result is "Not checked" and an
+// uncollected field can never read as a match. Never refused as missing; both inputs are optional.
+export function saveCouldntVerify(
+  state: PersistedState,
+  requestId: string,
+  { reason = '', personSpokenTo = '' }: CouldntVerifyInput,
+  ctx: Ctx,
+): KernelResult {
+  if (!lookupRequest(ctx.samples, requestId)) return { ok: false, reason: 'unknown_request' }
+  const phase = phaseOf(state, requestId)
+  if (phase === 'verified') return { ok: false, reason: 'verified' }
+  // A revealed comparison is saved or left as it is; it can't be swapped for "couldn't verify".
+  if (phase === 'pending') return { ok: false, reason: 'pending_comparison' }
+
+  const position = state.records.length + 1
+  const attempt: Attempt = {
+    id: attemptId(state.attempts.length + 1),
+    requestId,
+    status: 'saved',
+    outcome: 'couldnt_verify',
+    stated: null,
+    personSpokenTo: isBlank(personSpokenTo) ? null : personSpokenTo,
+    results: { ...NOT_CHECKED },
+    reason, // as typed; the screens show "No reason recorded" when it is blank
+    comparedAt: null,
+    savedAt: ctx.now.toISOString(),
+    recordId: recordIdFor(ctx.now, ctx.timeZone, position),
+  }
+  const record = buildRecord(attempt, ctx, position)
+  return {
+    ok: true,
+    state: { ...state, attempts: [...state.attempts, attempt], records: [...state.records, record] },
+    attemptId: attempt.id,
+    recordId: record.id,
+  }
+}
+
 export function deriveRequestView(state: PersistedState, requestId: string, samples: Samples): RequestView | null {
   const parts = lookupRequest(samples, requestId)
   if (!parts) return null
