@@ -1,4 +1,4 @@
-import { test as base, expect, type Locator, type Page } from '@playwright/test'
+import { test as base, expect, type Locator, type Page, type Request } from '@playwright/test'
 import { SAMPLES } from '../../src/data/samples'
 import { lockAndCompare, saveAttempt as saveAttemptKernel } from '../../src/kernel/attempts'
 import type { AnswerKey, Answers, Ctx, PersistedState } from '../../src/kernel/types'
@@ -47,8 +47,15 @@ export const test = base.extend<{ pageWatch: PageWatch }>({
         watch.requests.push(url)
         if (!isLocalUrl(url)) watch.offSite.push(url)
       }
+      // A request reported by both its page and the context is counted once.
+      const counted = new WeakSet<Request>()
+      const onRequest = (request: Request) => {
+        if (counted.has(request)) return
+        counted.add(request)
+        seen(request.url())
+      }
       const attach = (target: Page) => {
-        target.on('request', (request) => seen(request.url()))
+        target.on('request', onRequest)
         target.on('websocket', (socket) => seen(socket.url()))
         target.on('console', (message) => {
           if (message.type() === 'error') watch.errors.push(`console.error: ${message.text()}`)
@@ -57,6 +64,8 @@ export const test = base.extend<{ pageWatch: PageWatch }>({
       }
       attach(page)
       page.context().on('page', attach) // a popup would be a way out of the laptop too
+      // The context also reports requests no page makes, such as a service worker's.
+      page.context().on('request', onRequest)
       await use(watch)
       expect(watch.offSite, 'requests or websockets beyond localhost, data: and blob:').toEqual([])
       expect(watch.errors, 'console errors and uncaught page errors').toEqual([])
@@ -657,4 +666,104 @@ export async function tabTo(page: Page, target: Locator, max = 40, key: 'Tab' | 
     await page.keyboard.press(key)
   }
   expect(await focused(), `focus reaches the control within ${max} presses of ${key}`).toBe(true)
+}
+
+// Proof the proofs hold (slice 6): every record field (VR-2) and the reload check (RT-4).
+
+// The PRD's record fields (prd.md > Verification records, "Each record shows"), in the PRD's order, each as the
+// record view shows it: a labelled pair (a term and the value after it), the details table (by its caption) or
+// the fictional-data label itself. Written out rather than imported, so a renamed or dropped field fails VR-2.
+export type RecordField = {
+  prd: string // the PRD's wording
+  shownAs: 'pair' | 'table' | 'label'
+  label: string // the term, the table's caption, or the label's own text
+}
+
+export const RECORD_FIELDS: readonly RecordField[] = [
+  { prd: 'a unique record ID', shownAs: 'pair', label: 'Record ID' },
+  { prd: 'the date and time with timezone', shownAs: 'pair', label: 'Saved' },
+  { prd: 'the supplier name', shownAs: 'pair', label: 'Supplier' },
+  { prd: 'the payment reference', shownAs: 'pair', label: 'Payment reference' },
+  { prd: 'the amount', shownAs: 'pair', label: 'Amount (CAD)' },
+  { prd: 'the due date', shownAs: 'pair', label: 'Due date' },
+  { prd: 'which sample email was checked', shownAs: 'pair', label: 'Email checked' },
+  { prd: 'the trusted number used', shownAs: 'pair', label: 'Trusted number used' },
+  { prd: 'the person spoken to', shownAs: 'pair', label: 'Person spoken to' },
+  {
+    prd: 'the requested and stated details with a result for each field',
+    shownAs: 'table',
+    label: 'Requested and stated details',
+  },
+  { prd: 'the overall outcome', shownAs: 'pair', label: 'Outcome' },
+  { prd: 'any reason or note', shownAs: 'pair', label: 'Reason or note' },
+  { prd: 'the resulting simulated payment status', shownAs: 'pair', label: 'Resulting payment status' },
+  { prd: 'the label', shownAs: 'label', label: 'Fictional sample data—no real call or payment' },
+]
+
+// The labelled pairs only, so a journey's VR-2 test can prove it gives an exact value for each one.
+export const RECORD_PAIR_LABELS: readonly string[] = RECORD_FIELDS.filter((field) => field.shownAs === 'pair').map(
+  (field) => field.label,
+)
+
+export const RECORD_DETAIL_COLUMNS = ['Detail', 'Requested (email)', 'Stated (supplier)', 'Result'] as const
+export const RECORD_DETAIL_ROWS = ['Payee name', 'Institution', 'Transit', 'Account'] as const
+
+// Every result a record can print for a field. Regex text isn't whitespace-normalised, hence the \s*.
+const RECORD_RESULT =
+  /^\s*(?:Matches|Does not match|Does not match \(differs before the last four digits\)|Not checked)\s*$/
+
+// A record's term, found by its exact words. The value after it is recordValue(page, term).
+export function recordTerm(page: Page, term: string): Locator {
+  return page
+    .getByRole('main')
+    .getByRole('term')
+    .filter({ hasText: new RegExp(`^${escapeRegExp(term)}$`) })
+}
+
+// VR-2 on whatever record is open: every RECORD_FIELDS item is visible, each pair with a value, and the details
+// table holds a requested value, a stated value and a result for each of the four fields.
+export async function expectRecordFields(page: Page): Promise<void> {
+  for (const field of RECORD_FIELDS) {
+    const what = `the record shows ${field.prd} ("${field.label}")`
+    if (field.shownAs === 'pair') {
+      await expect(recordTerm(page, field.label), what).toBeVisible()
+      await expect(recordValue(page, field.label), `${what} with a value`).toBeVisible()
+      await expect(recordValue(page, field.label), `${what} with a value`).toHaveText(/\S/)
+    } else if (field.shownAs === 'table') {
+      const details = table(page, field.label)
+      await expect(details, what).toBeVisible()
+      await expect(details.getByRole('columnheader'), 'its columns').toHaveText(RECORD_DETAIL_COLUMNS)
+      await expect(details.getByRole('rowheader'), 'one row per field').toHaveText(RECORD_DETAIL_ROWS)
+      for (const detail of RECORD_DETAIL_ROWS) {
+        await expect(rowOf(details, detail).getByRole('cell'), `${detail}: requested, stated and a result`).toHaveText([
+          /\S/,
+          /\S/,
+          RECORD_RESULT,
+        ])
+      }
+    } else {
+      await expect(page.getByRole('main').getByText(field.label, { exact: true }), what).toBeVisible()
+    }
+  }
+}
+
+// RT-4: reloads the screen and expects the same address, heading, state, visible text and saved value. Not for
+// a record just saved, whose "Saved" note belongs to the moment of saving: compare its recordText instead.
+export async function expectSameAfterReload(
+  page: Page,
+  at: RegExp,
+  heading: string,
+  expectState: (page: Page) => Promise<void>,
+): Promise<void> {
+  const main = page.getByRole('main')
+  await expectState(page) // the state is on screen before its text is captured
+  const before = { text: await main.innerText(), stored: await readStored(page) }
+  expect(before.stored, 'there is a saved state to keep').not.toBeNull()
+
+  await page.reload()
+  await expect(page).toHaveURL(at)
+  await expectScreen(page, heading, 'loaded')
+  await expectState(page)
+  await expect(main, 'the same text after the reload').toHaveText(before.text, { useInnerText: true })
+  expect(await readStored(page), 'the reload saved nothing').toBe(before.stored)
 }

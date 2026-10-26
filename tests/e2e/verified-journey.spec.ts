@@ -7,12 +7,15 @@ import {
   HEADING,
   LEGIT,
   MISMATCH,
+  RECORD_PAIR_LABELS,
   SIMULATED,
   backToOverview,
   compareAnswers,
   control,
   expect,
   expectNothingEditable,
+  expectRecordFields,
+  expectSameAfterReload,
   expectScreen,
   expectSimulatedBesideReadyToPay,
   expectStatus,
@@ -23,6 +26,7 @@ import {
   paymentStatus,
   reachComparison,
   readStored,
+  recordValue,
   reviewLink,
   rowOf,
   saveAttempt,
@@ -49,6 +53,31 @@ const COMPARISON_ROWS = [
   ['Transit', '40388', '40388', 'Matches'],
   ['Account', '3307126', '3307126', 'Matches'],
 ] as const
+
+// The saved record (VR-2): an exact value for each labelled field, from the sample and the fixed clock. The
+// payment status's badge and its simulated-money note sit side by side, with no space between their texts.
+const RECORD_VALUES: readonly (readonly [string, string | RegExp])[] = [
+  ['Record ID', 'PC-20261025-154200-001'],
+  ['Saved', 'Oct 25, 2026, 3:42 PM EDT'],
+  ['Supplier', 'Cedarline Electrical Supply Inc.'],
+  ['Payment reference', 'PR-2026-1043'],
+  ['Amount (CAD)', '$5,273.40'],
+  ['Due date', 'Oct 30, 2026'],
+  ['Email checked', 'New bank account for Cedarline Electrical Supply Inc. (received Oct 22, 2026)'],
+  ['Trusted number used', '519-555-0163'],
+  ['Person spoken to', 'Priya Natarajan'],
+  ['Outcome', 'Verified'],
+  ['Reason or note', 'No reason recorded'],
+  ['Resulting payment status', /^\s*Ready to pay\s*Simulated—no money moves\.\s*$/],
+]
+// The record's details table: the account masked in both columns (its text then carries the spoken
+// "account ending …" too, hence the anchored patterns), the rest in full.
+const RECORD_ROWS: readonly (readonly [string, readonly (string | RegExp)[]])[] = [
+  ['Payee name', ['Cedarline Electrical Supply Inc.', 'Cedarline Electrical Supply Inc.', 'Matches']],
+  ['Institution', ['958', '958', 'Matches']],
+  ['Transit', ['40388', '40388', 'Matches']],
+  ['Account', [/^…7126/, /^…7126/, 'Matches']],
+]
 
 // Everything a finished request must never offer again: no call-back, no retry, no second comparison.
 const ATTEMPT_CONTROLS = [
@@ -170,7 +199,28 @@ test('RT-3 a verified request reopens read-only, and its call-back address lands
   await expectVerifiedDetail(page)
 })
 
-test('VR-6 after a reload the verified record, the Overview and the read-only detail are unchanged', async ({ page }) => {
+test('VR-2 the saved verified record shows every PRD field, its exact ID and its saved time with zone', async ({ page }) => {
+  await verifyLegit(page)
+  await expectRecordFields(page)
+
+  // The fixed clock's ID and time, then an exact value for every labelled field RECORD_FIELDS names.
+  await expect(recordValue(page, 'Record ID')).toHaveText('PC-20261025-154200-001')
+  await expect(recordValue(page, 'Saved')).toHaveText('Oct 25, 2026, 3:42 PM EDT')
+  expect(RECORD_VALUES.map(([term]) => term).sort(), 'a value below for every labelled field').toEqual(
+    [...RECORD_PAIR_LABELS].sort(),
+  )
+  for (const [term, value] of RECORD_VALUES) await expect(recordValue(page, term), term).toHaveText(value)
+  await expect(recordValue(page, 'Resulting payment status').getByTestId('status')).toHaveText(READY_TO_PAY)
+
+  const details = table(page, 'Requested and stated details')
+  for (const [detail, cells] of RECORD_ROWS) {
+    await expect(rowOf(details, detail).getByRole('cell'), detail).toHaveText(cells)
+  }
+})
+
+// RT-4 for the verified journey: the record, the Overview and the read-only detail each reload to the same
+// screen and text. The record is compared field by field, since its "Saved" note is gone after a reload.
+test('RT-4 VR-6 after a reload the verified record, the Overview and the read-only detail are unchanged', async ({ page }) => {
   await verifyLegit(page)
 
   const fields = page.getByTestId('record-fields')
@@ -192,18 +242,14 @@ test('VR-6 after a reload the verified record, the Overview and the read-only de
   await expect(fields).toHaveText(before.fields, { useInnerText: true })
   await expect(details).toHaveText(before.details, { useInnerText: true })
 
+  expect(await readStored(page)).toBe(before.stored)
+
+  // Each also checks the address, the heading, the whole visible text and the saved value after the reload.
   await backToOverview(page)
-  await expectOverviewAfterVerify(page)
-  await page.reload()
-  await expectScreen(page, HEADING.overview, 'loaded')
-  await expectOverviewAfterVerify(page)
+  await expectSameAfterReload(page, AT.overview, HEADING.overview, expectOverviewAfterVerify)
 
   await openRequest(page, LEGIT)
-  await expectVerifiedDetail(page)
-  await page.reload()
-  await expect(page).toHaveURL(AT.request(LEGIT))
-  await expectScreen(page, HEADING.request(LEGIT), 'loaded')
-  await expectVerifiedDetail(page)
+  await expectSameAfterReload(page, AT.request(LEGIT), HEADING.request(LEGIT), expectVerifiedDetail)
 
   expect(await readStored(page)).toBe(before.stored)
 })

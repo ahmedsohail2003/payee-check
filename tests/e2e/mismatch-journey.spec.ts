@@ -4,11 +4,14 @@ import {
   FIRST_RECORD_ID,
   FIXED_SAVED_AT,
   MISMATCH_ANSWERS,
+  RECORD_PAIR_LABELS,
   checkScreen,
   expect,
+  expectRecordFields,
   fillAnswers,
   printCalls,
   readStored,
+  recordValue,
   startAt,
   test,
 } from './helpers'
@@ -46,6 +49,30 @@ const COMPARISON_ROWS = [
   ['Transit', '60415', '60415', 'Matches'],
   ['Account', '73419020', '73414471', 'Does not match'],
 ] as const
+
+// The saved record (VR-2): an exact value for each labelled field, from the sample and the fixed clock.
+const RECORD_VALUES: readonly (readonly [string, string])[] = [
+  ['Record ID', 'PC-20261025-154200-001'],
+  ['Saved', 'Oct 25, 2026, 3:42 PM EDT'],
+  ['Supplier', 'Harbourline Lumber Ltd.'],
+  ['Payment reference', 'PR-2026-1041'],
+  ['Amount (CAD)', '$12,480.00'],
+  ['Due date', 'Oct 30, 2026'],
+  ['Email checked', 'Updated banking details for Harbourline Lumber Ltd. (received Oct 23, 2026)'],
+  ['Trusted number used', '519-555-0142'],
+  ['Person spoken to', 'Sam Okafor'],
+  ['Outcome', 'Details do not match'],
+  ['Reason or note', 'No reason recorded'],
+  ['Resulting payment status', 'On hold—details do not match'],
+]
+// The record's details table: the account masked in both columns (its text then carries the spoken
+// "account ending …" too, hence the anchored patterns), the rest in full.
+const RECORD_ROWS: readonly (readonly [string, readonly (string | RegExp)[]])[] = [
+  ['Payee name', ['Harbourline Lumber Ltd.', 'Harbourline Lumber Ltd.', 'Matches']],
+  ['Institution', ['952', '952', 'Matches']],
+  ['Transit', ['60415', '60415', 'Matches']],
+  ['Account', [/^…9020/, /^…4471/, 'Does not match']],
+]
 
 const MONOSPACE = /monospace|Cascadia Mono|Consolas|Courier New/
 const PHONE_SHAPE = /\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}/g
@@ -378,6 +405,24 @@ test('OS-5 Save, Print, Back and reload never clear the mismatch hold', async ({
   await page.reload()
   await onScreen(page, 'Payee Check')
   await expect(paymentStatus(page, SUPPLIER)).toHaveText(HELD_MISMATCH)
+})
+
+test('VR-2 the saved mismatch record shows every PRD field, its exact ID and its saved time with zone', async ({ page }) => {
+  await saveMismatch(page)
+  await expectRecordFields(page)
+
+  // The fixed clock's ID and time, then an exact value for every labelled field RECORD_FIELDS names.
+  await expect(recordValue(page, 'Record ID')).toHaveText('PC-20261025-154200-001')
+  await expect(recordValue(page, 'Saved')).toHaveText('Oct 25, 2026, 3:42 PM EDT')
+  expect(RECORD_VALUES.map(([term]) => term).sort(), 'a value below for every labelled field').toEqual(
+    [...RECORD_PAIR_LABELS].sort(),
+  )
+  for (const [term, value] of RECORD_VALUES) await expect(recordValue(page, term), term).toHaveText(value)
+
+  const details = table(page, 'Requested and stated details')
+  for (const [detail, cells] of RECORD_ROWS) {
+    await expect(rowOf(details, detail).getByRole('cell'), detail).toHaveText(cells)
+  }
 })
 
 test('VR-6 the record and the Overview statuses are unchanged after a reload', async ({ page }) => {
