@@ -1,5 +1,8 @@
 import { test as base, expect, type Locator, type Page } from '@playwright/test'
-import type { AnswerKey, Answers, PersistedState } from '../../src/kernel/types'
+import { SAMPLES } from '../../src/data/samples'
+import { lockAndCompare, saveAttempt as saveAttemptKernel } from '../../src/kernel/attempts'
+import type { AnswerKey, Answers, Ctx, PersistedState } from '../../src/kernel/types'
+import { EMPTY_STATE } from '../../src/storage/store'
 
 // Shared by every E2E spec: the automatic network and console watch, the fixed clock, the print counter and
 // the every-screen checks. Specs import `test` and `expect` from here, never from @playwright/test.
@@ -502,4 +505,126 @@ export async function expectRecordText(page: Page, expected: RecordText): Promis
   await expect(page.getByTestId('record-fields')).toHaveText(expected.fields, { useInnerText: true })
   await expect(table(page, 'Requested and stated details')).toHaveText(expected.details, { useInnerText: true })
   await expect(recordValue(page, 'Reason or note')).toHaveText(expected.reason, { useInnerText: true })
+}
+
+// Saved data you can trust (slice 4): seeded mid-journey states, failure injection and Reset demo.
+
+// Seeds are built by the kernel itself at FIXED_TIME in the zone playwright.config.ts pins, so they always pass
+// the schema and checkInvariants, and a seeded record reads exactly like one saved through the UI.
+const SEED_CTX: Ctx = { samples: SAMPLES, now: FIXED_TIME, timeZone: 'America/Toronto' }
+
+function comparedSeed(sample: Sample): { state: PersistedState; attemptId: string } {
+  const result = lockAndCompare(EMPTY_STATE, sample.requestId, { ...sample.answers }, SEED_CTX)
+  if (!result.ok) throw new Error(`seed: the kernel refused Compare (${result.reason})`)
+  return { state: result.state, attemptId: result.attemptId }
+}
+
+// The payee-check:v1 value of one unsaved comparison of the sample's answers (A-001, status "compared").
+export function seedPendingComparison(sample: Sample = MISMATCH): string {
+  return JSON.stringify(comparedSeed(sample).state)
+}
+
+// The payee-check:v1 value of the mismatch request's saved attempt and its record, FIRST_RECORD_ID.
+export function seedSavedMismatch(): string {
+  const compared = comparedSeed(MISMATCH)
+  const result = saveAttemptKernel(compared.state, compared.attemptId, SEED_CTX)
+  if (!result.ok) throw new Error(`seed: the kernel refused Save attempt (${result.reason})`)
+  return JSON.stringify(result.state)
+}
+
+// The dev server's origin (playwright.config.ts baseURL): storageState is set per origin.
+export const APP_ORIGIN = 'http://localhost:5180'
+
+export type StoredItem = { name: string; value: string }
+export type SeededStorageState = { cookies: []; origins: { origin: string; localStorage: StoredItem[] }[] }
+
+// For test.use({ storageState }): the context starts with `value` under payee-check:v1, plus any other keys on
+// the same origin. It's applied once when the context is created, so a reload keeps what the app saved since.
+export function storageStateWith(value: string, extra: StoredItem[] = []): SeededStorageState {
+  return { cookies: [], origins: [{ origin: APP_ORIGIN, localStorage: [{ name: STORAGE_KEY, value }, ...extra] }] }
+}
+
+// Any key on the app's origin, such as another site's data that Reset must leave alone.
+export async function readLocal(page: Page, key: string): Promise<string | null> {
+  return page.evaluate((name) => window.localStorage.getItem(name), key)
+}
+
+type FailWindow = Window & { __failSaves?: boolean }
+
+// Failure injection uses addInitScript, so the patch is in place before the app's first line and after every
+// reload; each new document starts the switch at `failing`. While window.__failSaves is true, setItem and
+// removeItem throw as a full or locked-down store would. getItem is untouched, so readStored still sees what's
+// there. The store catches these, so nothing reaches console.error.
+export async function installFailureSwitch(page: Page, { failing = false }: { failing?: boolean } = {}): Promise<void> {
+  await page.addInitScript((startFailing) => {
+    const w = window as FailWindow
+    w.__failSaves = startFailing
+    const { setItem, removeItem } = Storage.prototype
+    Storage.prototype.setItem = function (this: Storage, key: string, value: string) {
+      if (w.__failSaves === true) throw new DOMException('test: saving is switched off', 'QuotaExceededError')
+      setItem.call(this, key, value)
+    }
+    Storage.prototype.removeItem = function (this: Storage, key: string) {
+      if (w.__failSaves === true) throw new DOMException('test: saving is switched off', 'SecurityError')
+      removeItem.call(this, key)
+    }
+  }, failing)
+}
+
+// Flips the switch for the current document, so a test can fail one action and then prove Try again recovers.
+export async function setFailSaves(page: Page, on: boolean): Promise<void> {
+  await page.evaluate((value) => {
+    const w = window as FailWindow
+    w.__failSaves = value
+  }, on)
+}
+
+// What Chrome does when site data is blocked: even reading window.localStorage throws. readStored can't be used
+// after this.
+export async function blockStorage(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('test: site data is blocked', 'SecurityError')
+      },
+    })
+  })
+}
+
+// First use, and again after a confirmed Reset: the two flagged rows held for verification, the other three
+// scheduled.
+export async function expectStartingStatuses(page: Page): Promise<void> {
+  const badges = page.getByTestId('status')
+  await expect(badges).toHaveCount(5)
+  await expect(badges.filter({ hasText: PAYMENT_STATUS.needsVerification })).toHaveCount(2)
+  await expect(paymentStatus(page, MISMATCH.supplier)).toHaveText(PAYMENT_STATUS.needsVerification)
+  await expect(paymentStatus(page, LEGIT.supplier)).toHaveText(PAYMENT_STATUS.needsVerification)
+  await expect(badges.filter({ hasText: 'Scheduled' })).toHaveCount(3)
+}
+
+// Reset demo, on the Overview and on the Recovery notice, and the native <dialog> it opens.
+export function resetDemoButton(page: Page): Locator {
+  return page.getByRole('button', { name: 'Reset demo', exact: true })
+}
+
+export function resetDialog(page: Page): Locator {
+  return page.getByRole('dialog', { name: 'Reset demo?', exact: true })
+}
+
+export function resetDialogButton(page: Page, name: 'Cancel' | 'Yes, reset'): Locator {
+  return resetDialog(page).getByRole('button', { name, exact: true })
+}
+
+// Opens the dialog and checks it starts on Cancel, so a stray Enter cancels instead of resetting.
+export async function openResetDialog(page: Page): Promise<void> {
+  await resetDemoButton(page).click()
+  await expect(resetDialog(page)).toBeVisible()
+  await expect(resetDialogButton(page, 'Cancel'), 'Cancel is focused when the dialog opens').toBeFocused()
+}
+
+// Presses "Yes, reset". The dialog closes either way: a modal left open would hide the error banner behind it.
+export async function confirmReset(page: Page): Promise<void> {
+  await resetDialogButton(page, 'Yes, reset').click()
+  await expect(resetDialog(page)).toBeHidden()
 }

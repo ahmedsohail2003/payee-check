@@ -24,6 +24,10 @@ type Props = {
   view: CallbackView
   onCompare: (answers: Answers) => CompareResult
   onCouldntVerify: (input: CouldntVerifyInput) => void
+  // Called on every change to an answer or the reason (the hook's clearError). After a failed save it clears
+  // the banner and its Try again, which would otherwise save the values typed when the save failed, not
+  // those on screen.
+  onEdit: () => void
 }
 
 const BLANK: Answers = { payeeName: '', institution: '', transit: '', account: '', personSpokenTo: '' }
@@ -34,7 +38,7 @@ const PANEL_ID = 'couldnt-verify-panel'
 const REASON_ID = 'couldnt-verify-reason'
 const REASON_HINT_ID = 'couldnt-verify-reason-hint'
 
-export function CallbackStep({ view, onCompare, onCouldntVerify }: Props) {
+export function CallbackStep({ view, onCompare, onCouldntVerify, onEdit }: Props) {
   const [answers, setAnswers] = useState<Answers>(BLANK)
   const [missing, setMissing] = useState<AnswerKey[]>([])
   const [refusals, setRefusals] = useState(0)
@@ -125,6 +129,7 @@ export function CallbackStep({ view, onCompare, onCouldntVerify }: Props) {
                 onChange={(event) => {
                   const value = event.target.value
                   setAnswers((current) => ({ ...current, [key]: value }))
+                  onEdit()
                 }}
               />
               {isMissing && (
@@ -169,7 +174,10 @@ export function CallbackStep({ view, onCompare, onCouldntVerify }: Props) {
             autoComplete="off"
             aria-describedby={REASON_HINT_ID}
             value={reason}
-            onChange={(event) => setReason(event.target.value)}
+            onChange={(event) => {
+              setReason(event.target.value)
+              onEdit()
+            }}
           />
           <p id={REASON_HINT_ID} className="hint">
             {REASON_HINT}

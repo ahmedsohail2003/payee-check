@@ -2,7 +2,9 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { toHash } from './app/routes'
 import { useAppState } from './app/useAppState'
 import { ErrorBanner } from './components/ErrorBanner'
-import { APP_NAME, HEADINGS, OVERVIEW_TITLE, RECOVERY, STORAGE_UNREADABLE, pageTitle } from './copy'
+import { RecoveryNotice } from './components/RecoveryNotice'
+import { StorageNotice } from './components/StorageNotice'
+import { APP_NAME, HEADINGS, OVERVIEW_TITLE, pageTitle } from './copy'
 import { SAMPLES } from './data/samples'
 import { callbackView, canStartAttempt, deriveRequestView } from './kernel/attempts'
 import { CallbackStep } from './screens/CallbackStep'
@@ -15,7 +17,10 @@ type AppState = ReturnType<typeof useAppState>
 type Screen = { title: string; element: ReactNode }
 
 function overviewScreen(app: AppState): Screen {
-  return { title: pageTitle(OVERVIEW_TITLE), element: <Overview state={app.state} samples={SAMPLES} /> }
+  return {
+    title: pageTitle(OVERVIEW_TITLE),
+    element: <Overview state={app.state} samples={SAMPLES} onReset={app.resetDemo} />,
+  }
 }
 
 // The router has already applied every guard, so a missing request or record here means the state moved
@@ -46,7 +51,8 @@ function screenFor(app: AppState): Screen {
       if (view === null) return overviewScreen(app)
       // Keyed by request and its attempt count, so every new attempt starts blank: typing never carries over
       // from one request's call-back to another's, or from an earlier attempt to a retry. A failed save adds
-      // no attempt, so it keeps the typing.
+      // no attempt, so it keeps the typing. Any edit clears a failed save's Try again, which would otherwise
+      // save what was typed when it failed instead of what is on screen.
       const attemptCount = state.attempts.filter((a) => a.requestId === view.requestId).length
       return {
         title: pageTitle(HEADINGS.callback(view.supplierName)),
@@ -56,6 +62,7 @@ function screenFor(app: AppState): Screen {
             view={view}
             onCompare={(answers) => app.compare(view.requestId, answers)}
             onCouldntVerify={(input) => app.couldntVerify(view.requestId, input)}
+            onEdit={app.clearError}
           />
         ),
       }
@@ -94,19 +101,10 @@ function screenFor(app: AppState): Screen {
   }
 }
 
-// Slice 4 replaces this with RecoveryNotice (with Reset demo). Nothing from the invalid data is shown.
-function recoveryScreen(): Screen {
-  return {
-    title: APP_NAME,
-    element: (
-      <>
-        <h1 tabIndex={-1} aria-describedby="recovery-message">
-          {APP_NAME}
-        </h1>
-        <p id="recovery-message">{RECOVERY}</p>
-      </>
-    ),
-  }
+// Invalid saved data: the notice replaces every screen and is given nothing from that data, which stays
+// untouched until Reset demo is confirmed.
+function recoveryScreen(app: AppState): Screen {
+  return { title: APP_NAME, element: <RecoveryNotice onReset={app.resetDemo} /> }
 }
 
 export function App() {
@@ -125,20 +123,24 @@ export function App() {
     }
   }, [syncWithHash])
 
-  const screen = app.load.kind === 'invalid' ? recoveryScreen() : screenFor(app)
-  const routeKey = toHash(app.route)
-  const shownRoute = useRef(routeKey)
+  const recovering = app.load.kind === 'invalid'
+  const screen = recovering ? recoveryScreen(app) : screenFor(app)
+  // The Recovery notice is one screen whatever the address says. A successful Reset is a screen change even
+  // when the route was already the Overview, so the reset count is part of the key.
+  const screenKey = recovering ? 'recovery' : `${toHash(app.route)} ${app.resetCount}`
+  const shownScreen = useRef(screenKey)
 
   // On every screen change: title, top of the page, focus on the new heading. The button just pressed has
-  // gone, so without this focus would fall to <body> and a screen reader would hear nothing. On first load
-  // (and React's StrictMode re-run of it) the route hasn't changed, so only the title is set.
+  // gone (or, after a Reset, the dialog has), so without this focus would fall to <body> and a screen reader
+  // would hear nothing. On first load (and React's StrictMode re-run of it) the screen hasn't changed, so only
+  // the title is set. A failed save or reset changes no screen, so focus stays on the button that was pressed.
   useEffect(() => {
     document.title = screen.title
-    if (shownRoute.current === routeKey) return
-    shownRoute.current = routeKey
+    if (shownScreen.current === screenKey) return
+    shownScreen.current = screenKey
     document.querySelector<HTMLElement>('main h1')?.focus({ preventScroll: true })
     window.scrollTo(0, 0)
-  }, [routeKey, screen.title])
+  }, [screenKey, screen.title])
 
   return (
     <>
@@ -146,9 +148,8 @@ export function App() {
         <p className="app-name">{APP_NAME}</p>
       </header>
       <main>
-        <ErrorBanner error={app.error} />
-        {/* Slice 4 turns this into the full "can't save" notice. */}
-        {app.load.kind === 'unavailable' && <p className="notice">{STORAGE_UNREADABLE}</p>}
+        <ErrorBanner error={app.error} onRetry={app.error?.retry ?? null} />
+        {app.load.kind === 'unavailable' && <StorageNotice />}
         {screen.element}
       </main>
     </>

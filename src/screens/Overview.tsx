@@ -1,14 +1,16 @@
 import { toHash } from '../app/routes'
 import { MaskedAccount } from '../components/MaskedAccount'
+import { ResetDemoButton } from '../components/ResetDialog'
 import { PaymentStatusLine } from '../components/StatusBadge'
-import { BUTTONS, CAPTIONS, COLUMNS, FICTIONAL_LABEL, HEADINGS, NONE, NO_AI_NOTE, RESET, WHO_FOR } from '../copy'
+import { BUTTONS, CAPTIONS, COLUMNS, FICTIONAL_LABEL, HEADINGS, NONE, NO_AI_NOTE, WHO_FOR } from '../copy'
 import { paymentStatusForPayment } from '../kernel/attempts'
 import { formatCAD, formatDateOnly } from '../kernel/format'
 import type { PersistedState, Samples } from '../kernel/types'
 
-type Props = { state: PersistedState; samples: Samples }
+// onReset reports whether the saved data was really cleared; on success the app focuses this screen's heading.
+type Props = { state: PersistedState; samples: Samples; onReset: () => boolean }
 
-export function Overview({ state, samples }: Props) {
+export function Overview({ state, samples, onReset }: Props) {
   const supplierName = (id: string) => samples.suppliers.find((s) => s.id === id)?.name ?? ''
 
   return (
@@ -100,16 +102,9 @@ export function Overview({ state, samples }: Props) {
         </table>
       </div>
 
+      {/* Outlined, never filled: the one destructive action must not be the loudest thing on the page. */}
       <div className="actions">
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => {
-            // TODO(slice 4): open the Reset dialog. Until then this button changes nothing.
-          }}
-        >
-          {RESET.action}
-        </button>
+        <ResetDemoButton onReset={onReset} />
       </div>
     </>
   )

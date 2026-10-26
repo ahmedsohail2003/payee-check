@@ -101,7 +101,7 @@ Build mode: fast
   - Then press "Try verification again", do a full call-back that matches, and open the first record again: it should still say "On hold—details do not match".
   Commit: `Add couldn't-verify, retries and append-only record history`
 
-- [ ] **4. Saved data you can trust: invalid data, blocked storage, failed saves and Reset demo**
+- [x] **4. Saved data you can trust: invalid data, blocked storage, failed saves and Reset demo**
   Becomes usable:
   - "Reset demo" asks first. Cancel changes nothing. Confirming restores the two starting requests and clears only Payee Check's data.
   - Corrupted saved data shows the Recovery notice instead of any status.

@@ -285,6 +285,20 @@ thead th {
   padding: 8px 16px;
 }
 
+/* Reset dialog: a plain bordered box over a dimmed, inert page. */
+.dialog {
+  max-width: 32rem;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 24px;
+}
+
+.dialog::backdrop {
+  background: rgb(20 35 60 / 0.4);
+}
+
 /* Always mounted; it takes space only when it holds a message. */
 .error-banner:not(:empty) {
   border: 2px solid var(--bad);

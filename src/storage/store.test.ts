@@ -292,6 +292,13 @@ describe('clear', () => {
     expect(createStore(() => fakeStorage().storage).load()).toEqual({ kind: 'empty' })
   })
 
+  test('RS-2 clear() with nothing saved is ok and still touches only payee-check:v1', () => {
+    const { storage, data, calls } = fakeStorage({ 'other-site:keep': 'yes' })
+    expect(createStore(() => storage).clear()).toEqual({ ok: true })
+    expect(calls).toEqual(['removeItem payee-check:v1'])
+    expect([...data.entries()]).toEqual([['other-site:keep', 'yes']])
+  })
+
   test('RS-2 clear() works when the stored value is invalid', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { storage, data } = fakeStorage({ 'other-site:keep': 'yes', [STORAGE_KEY]: '{not json' })
@@ -456,6 +463,7 @@ describe('storage failures', () => {
   const saveFailures: { id: string; name: string; arrange: (f: ReturnType<typeof fakeStorage>['fail']) => void; error: string }[] = [
     { id: 'SB-3', name: 'setItem throws a SecurityError → unavailable', arrange: (f) => (f.setItem = blocked()), error: 'unavailable' },
     { id: 'SB-3', name: 'setItem throws a plain Error → unavailable', arrange: (f) => (f.setItem = new Error('nope')), error: 'unavailable' },
+    { id: 'SB-3', name: 'setItem throws a value that is not an Error → unavailable', arrange: (f) => (f.setItem = 'nope'), error: 'unavailable' },
     {
       id: 'SB-3',
       name: 'setItem throws a QuotaExceededError DOMException → quota',
@@ -501,10 +509,27 @@ describe('storage failures', () => {
 
   test('SB-5 removeItem throws → clear is ok: false and the stored value is kept', () => {
     const before = json(SAVED_STATE)
-    const { storage, data, fail } = fakeStorage({ [STORAGE_KEY]: before, 'other-site:keep': 'yes' })
+    const { storage, data, calls, fail } = fakeStorage({ [STORAGE_KEY]: before, 'other-site:keep': 'yes' })
     fail.removeItem = blocked()
     expect(createStore(() => storage).clear()).toEqual({ ok: false })
     expect(data.get(STORAGE_KEY)).toBe(before)
+    expect(data.get('other-site:keep')).toBe('yes')
+    // No fallback to storage.clear(), which would wipe other sites' data.
+    expect(calls).toEqual(['removeItem payee-check:v1'])
+  })
+
+  test('SB-5 the getter throws at Reset → clear is ok: false, not a crash, and a later clear still works', () => {
+    let blockedNow = true
+    const { storage, data } = fakeStorage({ [STORAGE_KEY]: json(SAVED_STATE), 'other-site:keep': 'yes' })
+    const store = createStore(() => {
+      if (blockedNow) throw blocked()
+      return storage
+    })
+    expect(store.clear()).toEqual({ ok: false })
+    expect(data.get(STORAGE_KEY)).toBe(json(SAVED_STATE))
+    blockedNow = false
+    expect(store.clear()).toEqual({ ok: true })
+    expect(data.has(STORAGE_KEY)).toBe(false)
     expect(data.get('other-site:keep')).toBe('yes')
   })
 })
